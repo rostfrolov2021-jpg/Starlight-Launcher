@@ -4,11 +4,11 @@
 
 Minecraft, любимые сборки и свои серверы — в одном приложении.
 
-**[Сайт Starlight](https://rostfrolov2021-jpg.github.io/Starlight-Launcher/)** · **[Скачать для Windows](https://github.com/rostfrolov2021-jpg/Starlight-Launcher/releases/latest)**
+**[Сайт Starlight](https://rostfrolov2021-jpg.github.io/Starlight-Launcher/)** · **[Скачать для Windows](https://github.com/rostfrolov2021-jpg/Starlight-Launcher/releases/latest/download/Starlight-Setup-win-x64.exe)**
 
 ## Как установить
 
-1. Скачайте установщик `.exe` из последнего выпуска.
+1. Нажмите «Скачать для Windows» — начнётся загрузка установщика `.exe`.
 2. Откройте файл и завершите установку.
 3. Запустите Starlight, добавьте профиль и выберите сборку.
 

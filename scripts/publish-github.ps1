@@ -30,11 +30,13 @@ $output = "artifacts/github-releases/v$version"
 $zip = "$output/Starlight-$version-win-x64.zip"
 Copy-Item -LiteralPath $installer -Destination $output
 $installer = Join-Path $output (Split-Path $installer -Leaf)
-$checksums = @($zip, $installer, "$output/latest.json") | ForEach-Object { (Get-FileHash -LiteralPath $_ -Algorithm SHA256).Hash.ToLowerInvariant() + '  ' + (Split-Path $_ -Leaf) }
+$directInstaller = Join-Path $output 'Starlight-Setup-win-x64.exe'
+Copy-Item -LiteralPath $installer -Destination $directInstaller
+$checksums = @($zip, $installer, $directInstaller, "$output/latest.json") | ForEach-Object { (Get-FileHash -LiteralPath $_ -Algorithm SHA256).Hash.ToLowerInvariant() + '  ' + (Split-Path $_ -Leaf) }
 [IO.File]::WriteAllLines((Join-Path $PWD "$output/SHA256SUMS.txt"), $checksums)
-Invoke-Gh @('release', 'create', "v$version", $zip, $installer, "$output/latest.json", "$output/SHA256SUMS.txt", '--repo', $Repository, '--target', $head.Trim(), '--draft', '--title', "Starlight $version", '--notes-file', 'RELEASE_NOTES.md')
+Invoke-Gh @('release', 'create', "v$version", $zip, $installer, $directInstaller, "$output/latest.json", "$output/SHA256SUMS.txt", '--repo', $Repository, '--target', $head.Trim(), '--draft', '--title', "Starlight $version", '--notes-file', 'RELEASE_NOTES.md')
 $assets = (Invoke-Gh @('release', 'view', "v$version", '--repo', $Repository, '--json', 'assets') | ConvertFrom-Json).assets
-foreach ($file in @($zip, $installer, "$output/latest.json", "$output/SHA256SUMS.txt")) {
+foreach ($file in @($zip, $installer, $directInstaller, "$output/latest.json", "$output/SHA256SUMS.txt")) {
     $local = Get-Item -LiteralPath $file
     if (-not ($assets | Where-Object { $_.name -eq $local.Name -and $_.size -eq $local.Length })) { throw 'Uploaded assets are incomplete; release remains a draft.' }
 }
