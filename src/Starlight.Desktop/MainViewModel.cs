@@ -104,7 +104,7 @@ public sealed partial class MainViewModel : ReactiveObject, IAsyncDisposable
     public string SocialName { get; set; } = "";
     public string SocialPassword { get; set; } = "";
     private string friendName = "";
-    public string FriendName { get => friendName; set { this.RaiseAndSetIfChanged(ref friendName, value); friendSearchTimer.Stop(); FriendSearchResults.Clear(); if (value.Trim().Length >= 3) friendSearchTimer.Start(); } }
+    public string FriendName { get => friendName; set { this.RaiseAndSetIfChanged(ref friendName, value ?? ""); friendSearchTimer.Stop(); FriendSearchResults.Clear(); SelectedSearchUser = null; if (friendName.Trim().Length >= 3) friendSearchTimer.Start(); else FriendSearchStatus = "Поиск по первым трём буквам имени."; } }
     public string MessageText { get; set; } = "";
     public string? SelectedGroup { get; set; }
     public bool SendToGroup { get; set; }

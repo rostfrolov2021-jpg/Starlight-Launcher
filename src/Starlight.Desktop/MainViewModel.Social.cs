@@ -14,6 +14,7 @@ public sealed partial class MainViewModel
     private readonly DispatcherTimer friendSearchTimer = new() { Interval = TimeSpan.FromMilliseconds(350) };
     private readonly SemaphoreSlim friendSearchGate = new(1);
     public ObservableCollection<SocialUser> FriendSearchResults { get; } = [];
+    public bool HasFriendSearchResults => FriendSearchResults.Count > 0;
     private SocialUser? selectedSearchUser;
     public SocialUser? SelectedSearchUser { get => selectedSearchUser; set { this.RaiseAndSetIfChanged(ref selectedSearchUser, value); } }
     public AsyncCommand AddSearchFriend { get; private set; } = null!;
@@ -29,6 +30,7 @@ public sealed partial class MainViewModel
     public AsyncCommand ConnectOfficialSocial { get; private set; } = null!;
     private void InitializeSocialPanel()
     {
+        FriendSearchResults.CollectionChanged += (_, _) => this.RaisePropertyChanged(nameof(HasFriendSearchResults));
         ConnectOfficialSocial = Command(async ct => { await DiscoverOfficialSocialAsync(true, ct); });
         friendSearchTimer.Tick += (_, _) => { friendSearchTimer.Stop(); _ = SearchFriendsSafelyAsync(); };
         AddSearchFriend = SocialCommand(async ct => {

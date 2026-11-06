@@ -130,11 +130,11 @@
               <TextBlock Text="Друзья" FontSize="20"/>
               <TextBox Text="{Binding FriendName}" Watermark="Имя или Starlight ID"/>
               <TextBlock Text="{Binding FriendSearchStatus}" Classes="muted" TextWrapping="Wrap" FontSize="11"/>
-              <ListBox ItemsSource="{Binding FriendSearchResults}" SelectedItem="{Binding SelectedSearchUser}" MaxHeight="140" IsVisible="{Binding FriendSearchResults.Count}"><ListBox.ItemTemplate><DataTemplate><StackPanel Spacing="3"><TextBlock Text="{Binding Name}"/><TextBlock Text="{Binding Id}" FontSize="9" Classes="muted"/></StackPanel></DataTemplate></ListBox.ItemTemplate></ListBox>
-              <Button Content="Добавить выбранного" Command="{Binding AddSearchFriend}" IsVisible="{Binding FriendSearchResults.Count}"/>
+              <ListBox ItemsSource="{Binding FriendSearchResults}" SelectedItem="{Binding SelectedSearchUser}" MaxHeight="140" IsVisible="{Binding HasFriendSearchResults}"><ListBox.ItemTemplate><DataTemplate><StackPanel Spacing="3"><TextBlock Text="{Binding Name}"/><TextBlock Text="{Binding Id}" FontSize="9" Classes="muted"/></StackPanel></DataTemplate></ListBox.ItemTemplate></ListBox>
+              <Button Content="Добавить выбранного" Command="{Binding AddSearchFriend}" IsVisible="{Binding HasFriendSearchResults}"/>
               <Button Content="＋ Заявка по имени / ID" Command="{Binding AddFriend}" FontSize="12"/>
               <ListBox ItemsSource="{Binding Friends}" SelectedItem="{Binding SelectedFriend}" Height="175"><ListBox.ItemTemplate><DataTemplate><StackPanel Spacing="4"><TextBlock Text="{Binding Name}"/><TextBlock Text="{Binding Status}" FontSize="10" Foreground="#A8BAB2" TextWrapping="Wrap"/></StackPanel></DataTemplate></ListBox.ItemTemplate></ListBox>
-              <WrapPanel><Button Content="Принять" Command="{Binding AcceptFriend}" Margin="0,0,6,6"/><Button Content="Удалить / отменить" Command="{Binding RemoveFriend}" FontSize="11"/></WrapPanel>
+              <WrapPanel><Button Content="Принять" Command="{Binding AcceptFriend}" Padding="10,8" Margin="0,0,6,6"/><Button Content="Удалить / отменить" Command="{Binding RemoveFriend}" Padding="10,8" FontSize="11"/></WrapPanel>
               <Button Content="↗ Присоединиться к игре" Command="{Binding JoinFriend}" Classes="primary" FontSize="12"/>
               <Button Content="Обновить список" Command="{Binding RefreshFriends}" FontSize="11"/>
             </StackPanel></Border>
