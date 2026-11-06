@@ -7,6 +7,7 @@ RUN dotnet publish src/Starlight.Server -c Release -o /app
 FROM mcr.microsoft.com/dotnet/aspnet:8.0
 WORKDIR /app
 COPY --from=build /app .
+RUN mkdir -p /data && chown $APP_UID:$APP_UID /data
 ENV ASPNETCORE_URLS=http://+:5088 STARLIGHT_DATA=/data/users.json STARLIGHT_NAT_PORT=5089
 EXPOSE 5088 5089/udp
 USER $APP_UID

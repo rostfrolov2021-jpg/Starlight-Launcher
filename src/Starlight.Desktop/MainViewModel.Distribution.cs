@@ -163,6 +163,7 @@ public sealed partial class MainViewModel
     private async Task LoadDistributionAsync(CancellationToken ct)
     {
         UpdateFeedUrl = UpdateChannels.Migrate(settings.UpdateFeedUrl); CheckUpdatesOnStartup = settings.CheckUpdatesOnStartup;
+        await DiscoverOfficialSocialAsync(false, ct);
         if (settings.ServiceLinked) { try { await EnsureSocialServiceAsync(ct); using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct); timeout.CancelAfter(TimeSpan.FromSeconds(5)); await LinkServiceAsync(timeout.Token); } catch (Exception e) when (!ct.IsCancellationRequested) { ServiceStatus = "Сервис недоступен: " + e.Message; linkedService = settings.SocialUrl; } }
         if (CheckUpdatesOnStartup && UpdateFeedUrl.Length > 0) { try { using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct); timeout.CancelAfter(TimeSpan.FromSeconds(5)); await CheckUpdatesAsync(timeout.Token); } catch (Exception) when (!ct.IsCancellationRequested) { UpdateStatus = "Не удалось проверить обновления. Проверку можно повторить вручную."; } }
     }

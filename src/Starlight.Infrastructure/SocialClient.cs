@@ -34,6 +34,7 @@ public sealed class SocialClient(HttpClient http) : IAsyncDisposable
         var uri = ApiClient.ServiceUri(url);
         if (uri.Scheme != "https" && !(uri.Scheme == "http" && uri.IsLoopback)) throw new ArgumentException("Внешний сервер связи должен использовать HTTPS.");
         await DisconnectAsync(); BaseUri = uri;
+        if (!uri.IsLoopback) await WaitForServiceAsync(uri, ct);
         using var response = await http.PostAsJsonAsync(new Uri(uri, register ? "auth/register" : "auth/login"), new SocialLogin(name, password), ct);
         if (!response.IsSuccessStatusCode)
         {
@@ -54,11 +55,45 @@ public sealed class SocialClient(HttpClient http) : IAsyncDisposable
             if (room == hostRoom) Track(HandleHostAsync(room, stream, secret, tunnels.Token));
         });
         Hub.Reconnecting += _ => { Notice?.Invoke("Связь прервана. Переподключение…"); return Task.CompletedTask; };
+        Hub.Closed += _ => { Notice?.Invoke("Связь с друзьями потеряна. Нажмите «Войти», чтобы подключиться снова."); FriendsChanged?.Invoke(); return Task.CompletedTask; };
         Hub.Reconnected += async _ => { hostRoom = null; await StopTunnelsAsync(); Notice?.Invoke("Связь восстановлена. Опубликуйте сервер заново."); FriendsChanged?.Invoke(); };
         try { await Hub.StartAsync(ct); }
         catch { await DisconnectAsync(); throw new InvalidOperationException(register ? "Аккаунт создан, но чат не подключился. Попробуйте «Войти»; повторная регистрация не нужна." : "Вход принят, но чат не подключился. Проверьте доступность WebSocket на сервисе."); }
     }
     public Task<Friend[]> FriendsAsync(CancellationToken ct) => RequireHub().InvokeAsync<Friend[]>("Friends", ct);
+    private async Task WaitForServiceAsync(Uri uri, CancellationToken ct)
+    {
+        Notice?.Invoke("Подключение к сервису друзей… После простоя бесплатный хостинг может запускаться около минуты.");
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct); deadline.CancelAfter(TimeSpan.FromSeconds(100));
+        try
+        {
+            while (true)
+            {
+                try
+                {
+                    using var attempt = CancellationTokenSource.CreateLinkedTokenSource(deadline.Token); attempt.CancelAfter(TimeSpan.FromSeconds(10));
+                    using var response = await http.GetAsync(new Uri(uri, "health"), attempt.Token);
+                    if (response.IsSuccessStatusCode)
+                    {
+                        var health = await response.Content.ReadFromJsonAsync<JsonElement>(attempt.Token);
+                        if (health.TryGetProperty("service", out var service) && service.GetString() == "Starlight" && health.TryGetProperty("status", out var status) && status.GetString() == "ok") return;
+                    }
+                }
+                catch (Exception e) when (!deadline.IsCancellationRequested && e is HttpRequestException or JsonException or OperationCanceledException) { }
+                await Task.Delay(TimeSpan.FromSeconds(2), deadline.Token);
+            }
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested) { throw new InvalidOperationException("Сервис друзей пока недоступен. Повторите вход через минуту. Локальный аккаунт вместо общего не создавался."); }
+    }
+    public Task<SocialUser[]> SearchUsersAsync(string prefix, CancellationToken ct) => RequireHub().InvokeAsync<SocialUser[]>("SearchUsers", prefix.Trim(), ct);
+    public Task RequestFriendAsync(string value, CancellationToken ct) => RequireHub().InvokeAsync("RequestFriend", FriendLookup.Normalize(value), ct);
+    public static string FriendlyError(Exception error)
+    {
+        var message = error.Message;
+        const string marker = "HubException: ";
+        var index = message.IndexOf(marker, StringComparison.Ordinal);
+        return index >= 0 ? message[(index + marker.Length)..].Trim() : error is Microsoft.AspNetCore.SignalR.HubException ? "Не удалось выполнить действие. Проверьте подключение к сервису друзей." : message;
+    }
     private void Track(Task task)
     {
         var id = Guid.NewGuid(); connections[id] = task;

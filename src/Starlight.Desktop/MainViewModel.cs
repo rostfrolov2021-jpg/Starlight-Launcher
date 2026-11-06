@@ -103,7 +103,8 @@ public sealed partial class MainViewModel : ReactiveObject, IAsyncDisposable
     public string Contact { get; set; } = "";
     public string SocialName { get; set; } = "";
     public string SocialPassword { get; set; } = "";
-    public string FriendName { get; set; } = "";
+    private string friendName = "";
+    public string FriendName { get => friendName; set { this.RaiseAndSetIfChanged(ref friendName, value); friendSearchTimer.Stop(); FriendSearchResults.Clear(); if (value.Trim().Length >= 3) friendSearchTimer.Start(); } }
     public string MessageText { get; set; } = "";
     public string? SelectedGroup { get; set; }
     public bool SendToGroup { get; set; }
@@ -146,7 +147,7 @@ public sealed partial class MainViewModel : ReactiveObject, IAsyncDisposable
         var downloads = new Downloads(http); instances = new(paths); var java = new JavaService(paths, downloads);
         game = new(paths, downloads, java, instances); servers = new(paths, downloads, game, java); mods = new(paths, downloads);
         auth = new(http); vault = new(paths); social = new(http);
-        InitializeDistribution(downloads); InitializeServerPanel();
+        InitializeDistribution(downloads); InitializeServerPanel(); InitializeSocialPanel();
         providers = [new ModrinthProvider(downloads), new CurseForgeProvider(http, () => CurseForgeKey, () => linkedService)];
         Navigate = ReactiveCommand.Create<string>(value => Page = int.Parse(value));
         Cancel = ReactiveCommand.Create(() => operation?.Cancel());
@@ -171,12 +172,12 @@ public sealed partial class MainViewModel : ReactiveObject, IAsyncDisposable
         ShareServer = Command(async ct => { if (serverProcess is not { HasExited: false } || runningServer == null) throw new InvalidOperationException("Сначала запустите сервер."); if (runningServer.Kind == ServerKind.Nukkit) throw new InvalidOperationException("Приглашения Starlight поддерживают Java TCP; для Nukkit используйте прямой UDP-доступ."); await social.HostAsync(runningServer.Port, runningServer.Name, ct); });
         SaveSettings = Command(SaveSettingsAsync);
         ConnectSocial = Command(ct => ConnectAsync(false, ct)); RegisterSocial = Command(ct => ConnectAsync(true, ct));
-        AddFriend = Command(async ct => { await social.RequireHub().InvokeAsync("RequestFriend", FriendName, ct); });
-        AcceptFriend = Command(async ct => { await social.RequireHub().InvokeAsync("AcceptFriend", RequireFriend().Id, ct); await LoadFriendsAsync(ct); });
-        RemoveFriend = Command(async ct => { await social.RequireHub().InvokeAsync("RemoveFriend", RequireFriend().Id, ct); await LoadFriendsAsync(ct); });
-        RefreshFriends = Command(LoadFriendsAsync);
-        SendMessage = Command(async ct => { var target = SendToGroup ? SelectedGroup ?? throw new InvalidOperationException("Выберите группу.") : RequireFriend().Id; await social.RequireHub().InvokeAsync("SendMessage", target, MessageText, ct); MessageText = ""; this.RaisePropertyChanged(nameof(MessageText)); });
-        CreateGroup = Command(async ct => { var id = await social.RequireHub().InvokeAsync<string>("CreateGroup", Friends.Where(f => !f.Pending).Select(f => f.Id).ToArray(), ct); SelectedGroup = id; this.RaisePropertyChanged(nameof(SelectedGroup)); });
+        AddFriend = SocialCommand(async ct => { await social.RequestFriendAsync(FriendName, ct); await LoadFriendsAsync(ct); FriendActionStatus = "Заявка отправлена. Друг увидит её после входа в этот же сервис."; });
+        AcceptFriend = SocialCommand(async ct => { var friend = RequireFriend(); if (!friend.Pending) throw new InvalidOperationException("Выберите входящую заявку."); await social.RequireHub().InvokeAsync("AcceptFriend", friend.Id, ct); await LoadFriendsAsync(ct); FriendActionStatus = "Друг добавлен. Теперь можно общаться."; });
+        RemoveFriend = SocialCommand(async ct => { await social.RequireHub().InvokeAsync("RemoveFriend", RequireFriend().Id, ct); await LoadFriendsAsync(ct); FriendActionStatus = "Друг или заявка удалены."; });
+        RefreshFriends = new(RefreshFriendsSafelyAsync);
+        SendMessage = SocialCommand(async ct => { var friend = SendToGroup ? null : RequireFriend(); if (friend is { Pending: true } or { Outgoing: true }) throw new InvalidOperationException("Сначала примите заявку в друзья."); var target = SendToGroup ? SelectedGroup ?? throw new InvalidOperationException("Выберите группу.") : friend!.Id; await social.RequireHub().InvokeAsync("SendMessage", target, MessageText, ct); MessageText = ""; this.RaisePropertyChanged(nameof(MessageText)); });
+        CreateGroup = SocialCommand(async ct => { var id = await social.RequireHub().InvokeAsync<string>("CreateGroup", Friends.Where(f => !f.Pending && !f.Outgoing).Select(f => f.Id).ToArray(), ct); SelectedGroup = id; this.RaisePropertyChanged(nameof(SelectedGroup)); });
         JoinFriend = Command(async ct => { var room = RequireFriend().Room ?? throw new InvalidOperationException("Друг не публикует сервер."); var port = await social.JoinAsync(room, ct); await LaunchAsync(ct, port); });
         CallFriend = Command(async ct => {
             var secret = VoiceService.NewSecret(); await social.RequireHub().InvokeAsync("VoiceOffer", RequireFriend().Id, "", secret, ct);
@@ -186,7 +187,7 @@ public sealed partial class MainViewModel : ReactiveObject, IAsyncDisposable
         EndCall = Command(async _ => { await voice.DisposeAsync(); incomingVoiceSecret = null; VoiceStatus = "Вызов завершён"; });
         OpenData = Command(_ => { Shell.Open(paths.Root); return Task.CompletedTask; });
         social.Message += message => Dispatcher.UIThread.Post(() => { Chat += $"\n[{message.At.ToLocalTime():HH:mm}] {message.Name}: {message.Text}"; if (Chat.Length > 60000) Chat = Chat[^50000..]; });
-        social.FriendsChanged += () => Dispatcher.UIThread.Post(() => RefreshFriends.Execute(null));
+        social.FriendsChanged += () => Dispatcher.UIThread.Post(() => { _ = RefreshFriendsSafelyAsync(); });
         social.GroupCreated += id => Dispatcher.UIThread.Post(() => { if (!Groups.Contains(id)) Groups.Add(id); });
         social.VoiceOffer += (from, _, secret) => Dispatcher.UIThread.Post(() => { incomingVoiceSecret = secret; VoiceStatus = "Входящий вызов от " + (Friends.FirstOrDefault(f => f.Id == from)?.Name ?? from); });
         social.Notice += text => Dispatcher.UIThread.Post(() => SocialStatus = text);
@@ -282,13 +283,27 @@ public sealed partial class MainViewModel : ReactiveObject, IAsyncDisposable
         try { await EnsureSocialServiceAsync(ct); social.NatPort = (int)NatPort; await social.ConnectAsync(SocialUrl, SocialName, SocialPassword, register, ct); SocialStatus = $"Вход выполнен: {social.Session!.Name} · ID {social.Session.Id}"; await LoadFriendsAsync(ct); }
         catch (Exception e) { SocialStatus = e is OperationCanceledException ? "Подключение отменено" : e.Message; throw; }
     }
-    private async Task LoadFriendsAsync(CancellationToken ct) { var list = await social.FriendsAsync(ct); Friends.Clear(); foreach (var f in list) Friends.Add(f); }
+    private async Task LoadFriendsAsync(CancellationToken ct)
+    {
+        await friendsGate.WaitAsync(ct);
+        try
+        {
+            var list = await social.FriendsAsync(ct); var selected = SelectedFriend?.Id;
+            var oldRequests = Friends.Where(f => f.Pending).Select(f => f.Id).ToHashSet();
+            Friends.Clear(); foreach (var f in list.OrderByDescending(f => f.Pending).ThenBy(f => f.Outgoing).ThenBy(f => f.Name)) Friends.Add(f);
+            SelectedFriend = Friends.FirstOrDefault(f => f.Id == selected); this.RaisePropertyChanged(nameof(SelectedFriend));
+            if (list.Any(f => f.Pending && !oldRequests.Contains(f.Id))) FriendActionStatus = "Есть новая заявка в друзья. Выберите её и нажмите «Принять».";
+            this.RaisePropertyChanged(nameof(SocialIdentity)); this.RaisePropertyChanged(nameof(SocialScope));
+        }
+        finally { friendsGate.Release(); }
+    }
     private void AppendLog(string line) { if (pendingLogs.Count < 2000) pendingLogs.Enqueue(line); Log.Information("{GameOutput}", line); }
     public async ValueTask DisposeAsync()
     {
         disposed = true;
-        await lifetime.CancelAsync(); modDebounce.Stop(); logTimer.Stop(); watcher?.Dispose();
+        await lifetime.CancelAsync(); modDebounce.Stop(); logTimer.Stop(); friendsTimer.Stop(); friendSearchTimer.Stop(); watcher?.Dispose();
         await actionGate.WaitAsync();
+        await socialActionGate.WaitAsync(); await friendsGate.WaitAsync(); await friendSearchGate.WaitAsync();
         await voice.DisposeAsync(); await social.DisposeAsync();
         if (serviceProcess is { HasExited: false }) { serviceProcess.Kill(true); await serviceProcess.WaitForExitAsync(); } serviceProcess?.Dispose();
         if (serverProcess is { HasExited: false }) { using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(60)); try { await ServerService.StopAsync(serverProcess, timeout.Token); } catch (Exception e) { Log.Warning("Server shutdown: {Type}", e.GetType().Name); } }

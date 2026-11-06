@@ -1,0 +1,22 @@
+# Free web service; connect a separate free Neon PostgreSQL database before deploying.
+services:
+  - type: web
+    name: starlight-social
+    runtime: docker
+    plan: free
+    dockerfilePath: ./deploy/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeployTrigger: checksPass
+    numInstances: 1
+    envVars:
+      - key: STARLIGHT_DATABASE_URL
+        sync: false
+      - key: STARLIGHT_REQUIRE_DATABASE
+        value: "true"
+      - key: ASPNETCORE_URLS
+        value: http://0.0.0.0:10000
+      - key: STARLIGHT_DATA
+        value: /data/users.json
+      - key: STARLIGHT_NAT_PORT
+        value: "5089"

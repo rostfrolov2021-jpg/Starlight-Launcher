@@ -14,3 +14,65 @@ jobs:
       - run: dotnet restore Starlight.sln
       - run: dotnet build Starlight.sln -c Release --no-restore
       - run: dotnet tests/Starlight.Tests/bin/Release/net8.0/Starlight.Tests.dll
+      - name: Friends, chat and persistent accounts
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/test-integration.ps1
+  social-container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build standalone service
+        run: docker build -f deploy/Dockerfile -t starlight-social .
+      - name: Verify data volume and restart
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker volume create social-test-data
+          docker run -d --name social-test -p 127.0.0.1:5088:5088 -v social-test-data:/data starlight-social
+          trap 'docker logs social-test; docker rm -f social-test' EXIT
+          for attempt in $(seq 1 30); do curl -fsS http://127.0.0.1:5088/health && break || sleep 1; done
+          curl -fsS http://127.0.0.1:5088/health
+          curl -fsS -X POST -H 'Content-Type: application/json' -d '{"name":"ContainerCheck","password":"container_test_password_123"}' http://127.0.0.1:5088/auth/register > /tmp/social-session.json
+          docker restart social-test
+          for attempt in $(seq 1 30); do curl -fsS http://127.0.0.1:5088/health && break || sleep 1; done
+          curl -fsS -X POST -H 'Content-Type: application/json' -d '{"name":"ContainerCheck","password":"container_test_password_123"}' http://127.0.0.1:5088/auth/login > /tmp/social-session.json
+  social-postgres:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: starlight_test
+          POSTGRES_PASSWORD: isolated_ci_password
+          POSTGRES_DB: starlight_test
+        ports:
+          - 5432:5432
+        options: --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - run: dotnet build Starlight.sln -c Release
+      - name: Shared PostgreSQL accounts, requests and chat
+        shell: bash
+        env:
+          STARLIGHT_DATABASE_URL: postgres://starlight_test:isolated_ci_password@127.0.0.1:5432/starlight_test
+          STARLIGHT_REQUIRE_DATABASE: 'true'
+          STARLIGHT_NAT_PORT: '5099'
+          STARLIGHT_TEST_NAT_PORT: '5099'
+          STARLIGHT_TEST_SOCIAL_STATE: /tmp/starlight-social-state.txt
+        run: |
+          set -euo pipefail
+          dotnet src/Starlight.Server/bin/Release/net8.0/Starlight.Server.dll --urls http://127.0.0.1:5098 > /tmp/starlight-server.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true; cat /tmp/starlight-server.log' EXIT
+          for attempt in $(seq 1 30); do curl -fsS http://127.0.0.1:5098/health && break || sleep 1; done
+          dotnet tests/Starlight.Tests/bin/Release/net8.0/Starlight.Tests.dll http://127.0.0.1:5098
+          kill "$server_pid"
+          wait "$server_pid" || true
+          dotnet src/Starlight.Server/bin/Release/net8.0/Starlight.Server.dll --urls http://127.0.0.1:5098 >> /tmp/starlight-server.log 2>&1 &
+          server_pid=$!
+          for attempt in $(seq 1 30); do curl -fsS http://127.0.0.1:5098/health && break || sleep 1; done
+          dotnet tests/Starlight.Tests/bin/Release/net8.0/Starlight.Tests.dll --social-resume http://127.0.0.1:5098 "$STARLIGHT_TEST_SOCIAL_STATE"

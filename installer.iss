@@ -1,6 +1,6 @@
 #define AppName "Starlight Launcher"
 #ifndef AppVersion
-#define AppVersion "1.3.0"
+#define AppVersion "1.3.1"
 #endif
 [Setup]
 AppId={{A35CC7A5-C657-4BA7-B0CE-60D0CB7B9114}

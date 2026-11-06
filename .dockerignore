@@ -1,0 +1,14 @@
+**/bin
+**/obj
+.git
+.tools
+.nuget
+artifacts
+owner-private
+deploy/data
+deploy/releases
+**/*-private.pem
+**/*.pfx
+**/*.p12
+**/.env
+**/.env.*

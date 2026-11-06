@@ -15,12 +15,24 @@ public sealed partial class MainWindow : Window
         AvaloniaXamlLoader.Load(this); DataContext = model;
         model.CopyText = text => Clipboard?.SetTextAsync(text) ?? Task.CompletedTask;
         model.CloseForUpdate = () => Dispatcher.UIThread.Post(Close);
+        model.ConfirmServerDelete = async server => {
+            var dialog = new Window { Title = "Удалить сервер?", Width = 460, SizeToContent = SizeToContent.Height, CanResize = false, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+            var cancel = new Button { Content = "Отмена" };
+            var confirm = new Button { Content = "Удалить из списка" };
+            cancel.Click += (_, _) => dialog.Close(false); confirm.Click += (_, _) => dialog.Close(true);
+            dialog.Content = new StackPanel { Margin = new Thickness(24), Spacing = 16, Children = {
+                new TextBlock { Text = "Удалить «" + server.Name + "»?", FontSize = 20, TextWrapping = Avalonia.Media.TextWrapping.Wrap },
+                new TextBlock { Text = "Мир, плагины и настройки сохранятся в архиве. Удаление можно отменить кнопкой в списке серверов.", TextWrapping = Avalonia.Media.TextWrapping.Wrap },
+                new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 12, Children = { cancel, confirm } }
+            } };
+            return await dialog.ShowDialog<bool>(this);
+        };
         model.PickPackFile = async () => {
             var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions { Title = "Импорт сборки", AllowMultiple = false,
                 FileTypeFilter = [new FilePickerFileType("Сборки Minecraft") { Patterns = ["*.mrpack", "*.zip"] }] });
             return files.FirstOrDefault()?.TryGetLocalPath();
         };
-        model.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(MainViewModel.Page)) this.FindControl<ScrollViewer>("MainScroll")!.Offset = default; };
+        model.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(MainViewModel.Page)) Dispatcher.UIThread.Post(() => this.FindControl<ScrollViewer>("MainScroll")!.Offset = default, DispatcherPriority.Background); };
         Opened += async (_, _) => {
             await model.InitializeAsync();
             if (Environment.GetEnvironmentVariable("STARLIGHT_SMOKE_WORKFLOW") == "1")

@@ -9,6 +9,19 @@ using Starlight.Domain;
 using Starlight.Infrastructure;
 
 if (args.FirstOrDefault() is "--core-metadata" or "--core-smoke") { await ServerPanelTests.CoreAsync(args); return; }
+if (args.FirstOrDefault() == "--social-resume")
+{
+    using var network = new HttpClient(); using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+    var names = (await File.ReadAllLinesAsync(args[2], timeout.Token));
+    await using var alice = new SocialClient(network); await using var bob = new SocialClient(network);
+    await alice.ConnectAsync(args[1], names[0], "integration_password_123", false, timeout.Token);
+    await bob.ConnectAsync(args[1], names[1], "integration_password_123", false, timeout.Token);
+    if (!(await alice.FriendsAsync(timeout.Token)).Any(f => f.Id == bob.Session!.Id && !f.Pending && !f.Outgoing)) throw new Exception("Friendship lost after service restart");
+    var received = new TaskCompletionSource<ChatMessage>(TaskCreationOptions.RunContinuationsAsynchronously); bob.Message += m => received.TrySetResult(m);
+    await alice.RequireHub().InvokeAsync("SendMessage", bob.Session!.Id, "after restart", timeout.Token);
+    if ((await received.Task.WaitAsync(TimeSpan.FromSeconds(5), timeout.Token)).Text != "after restart") throw new Exception("Chat unavailable after restart");
+    Console.WriteLine("PASS accounts, friendship and chat survive service restart"); return;
+}
 if (args.FirstOrDefault() == "--update-feed")
 {
     using var updateHttp = new HttpClient();
@@ -78,6 +91,7 @@ var decoded = new short[960]; Check(OpusDecoder.Create(48000, 1).Decode(bytes, 0
 
 passed += await DistributionTests.RunAsync(root);
 passed += await ServerPanelTests.RunAsync(root);
+passed += await FriendAndArchiveTests.RunAsync(root);
 if (args.Contains("--online"))
 {
     using var onlineHttp = new HttpClient(); onlineHttp.DefaultRequestHeaders.UserAgent.ParseAdd("StarlightLauncher/1.0");
@@ -118,10 +132,27 @@ else if (args.Length > 0)
     await alice.ConnectAsync(args[0], "Alice_" + suffix, "integration_password_123", true, ct);
     await bob.ConnectAsync(args[0], "Bob_" + suffix, "integration_password_123", true, ct);
     await stranger.ConnectAsync(args[0], "Other_" + suffix, "integration_password_123", true, ct);
-    await alice.RequireHub().InvokeAsync("RequestFriend", bob.Session!.Id, ct);
-    Check((await bob.FriendsAsync(ct)).Single().Pending, "friend request appears");
+    var found = await alice.SearchUsersAsync(" bOb ", ct);
+    Check(found.Any(u => u.Id == bob.Session!.Id), "authenticated prefix search is case insensitive and trims whitespace");
+    Check((await alice.SearchUsersAsync("bo", ct)).Length == 0 && (await alice.SearchUsersAsync("Alice_" + suffix, ct)).Length == 0, "search requires three characters and excludes self");
+    var changed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    bob.FriendsChanged += () => changed.TrySetResult();
+    await alice.RequestFriendAsync("  " + bob.Session!.Name.ToUpperInvariant() + "  ", ct);
+    await changed.Task.WaitAsync(TimeSpan.FromSeconds(5), ct);
+    Check((await bob.FriendsAsync(ct)).Single().Pending, "friend request arrives with live notification");
+    Check((await alice.FriendsAsync(ct)).Single().Outgoing, "sender sees pending outgoing request");
+    await alice.RequireHub().InvokeAsync("RequestFriend", "  " + Guid.Parse(bob.Session.Id).ToString("D").ToUpperInvariant() + "  ", ct);
+    Check((await bob.FriendsAsync(ct)).Length == 1, "duplicate request is idempotent and server normalizes legacy client input");
+    await alice.RequireHub().InvokeAsync("RemoveFriend", bob.Session.Id, ct);
+    Check((await bob.FriendsAsync(ct)).Length == 0 && (await alice.FriendsAsync(ct)).Length == 0, "sender can cancel outgoing request on both sides");
+    await bob.DisconnectAsync();
+    await alice.RequestFriendAsync("Bob_" + suffix, ct);
+    await bob.ConnectAsync(args[0], "Bob_" + suffix, "integration_password_123", false, ct);
+    Check((await bob.FriendsAsync(ct)).Single().Pending, "offline recipient receives saved request after login");
+    await bob.RequestFriendAsync(alice.Session!.Id, ct);
     await bob.RequireHub().InvokeAsync("AcceptFriend", alice.Session!.Id, ct);
     Check((await alice.FriendsAsync(ct)).Single().Id == bob.Session.Id, "friend request acceptance persisted");
+    Check((await alice.FriendsAsync(ct)).All(f => !f.Pending && !f.Outgoing) && (await bob.FriendsAsync(ct)).All(f => !f.Pending && !f.Outgoing), "accepting reciprocal requests clears both pending states");
     var received = new TaskCompletionSource<ChatMessage>(); bob.Message += m => received.TrySetResult(m);
     await alice.RequireHub().InvokeAsync("SendMessage", bob.Session.Id, "hello", ct);
     Check((await received.Task.WaitAsync(TimeSpan.FromSeconds(5), ct)).Text == "hello", "SignalR direct message");
@@ -150,6 +181,8 @@ else if (args.Length > 0)
         await alice.StopHostingAsync(ct);
     }
     await timeout.CancelAsync(); echo.Stop(); await echoTask;
+    if (Environment.GetEnvironmentVariable("STARLIGHT_TEST_SOCIAL_STATE") is { Length: > 0 } statePath)
+        await File.WriteAllLinesAsync(statePath, [alice.Session!.Name, bob.Session!.Name]);
 }
 Console.WriteLine($"{passed} checks passed.");
 

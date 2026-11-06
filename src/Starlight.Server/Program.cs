@@ -11,6 +11,7 @@ using Starlight.Server;
 var builder = WebApplication.CreateBuilder(args);
 builder.WebHost.ConfigureKestrel(o => o.Limits.MaxRequestBodySize = 32 * 1024);
 builder.Services.AddSingleton<SocialStore>();
+builder.Services.AddSingleton<AccountStorage>();
 builder.Services.AddSingleton<RelayRooms>();
 builder.Services.AddSingleton<NatMediator>();
 builder.Services.AddHostedService(s => s.GetRequiredService<NatMediator>());
@@ -49,6 +50,7 @@ app.MapPost("/auth/login", async (SocialLogin login, SocialStore store) => {
 }).RequireRateLimiting("auth");
 app.MapHub<SocialHub>("/hub");
 app.Map("/relay/{room}/{stream}/{role}", RelayRooms.HandleAsync);
+await app.Services.GetRequiredService<SocialStore>().InitializeAsync();
 app.Run();
 
 namespace Starlight.Server
@@ -56,17 +58,13 @@ namespace Starlight.Server
     public sealed record User(string Id, string Name, string Salt, string Hash, HashSet<string> Friends, HashSet<string> Requests);
     public sealed class SocialStore
     {
-        private readonly string file;
+        private readonly AccountStorage storage;
         private readonly SemaphoreSlim gate = new(1);
-        private Dictionary<string, User> users;
+        private Dictionary<string, User> users = [];
         private readonly ConcurrentDictionary<string, (string Id, DateTimeOffset Expires)> tokens = new();
         public ConcurrentDictionary<string, Presence> Online { get; } = new();
-        public SocialStore(IConfiguration config)
-        {
-            file = Path.GetFullPath(config["STARLIGHT_DATA"] ?? Path.Combine(AppContext.BaseDirectory, "data", "users.json"));
-            Directory.CreateDirectory(Path.GetDirectoryName(file)!);
-            users = File.Exists(file) ? JsonSerializer.Deserialize<Dictionary<string, User>>(File.ReadAllText(file)) ?? [] : [];
-        }
+        public SocialStore(AccountStorage storage) { this.storage = storage; }
+        public async Task InitializeAsync() => users = await storage.LoadAsync();
         public User? Authenticate(string token)
         {
             if (!tokens.TryGetValue(token, out var value)) return null;
@@ -101,14 +99,26 @@ namespace Starlight.Server
             var hash = await Task.Run(() => Rfc2898DeriveBytes.Pbkdf2(login.Password, salt, 600_000, HashAlgorithmName.SHA256, 32));
             return user != null && CryptographicOperations.FixedTimeEquals(hash, Convert.FromHexString(user.Hash)) ? Session(user) : null;
         }
-        public async Task RequestAsync(string from, string name)
+        public User[] Outgoing(string id) => Volatile.Read(ref users).Values.Where(u => u.Requests.Contains(id) && !u.Friends.Contains(id)).ToArray();
+        public SocialUser[] Search(string from, string prefix)
         {
+            prefix = (prefix ?? "").Trim();
+            if (!Regex.IsMatch(prefix, "^[A-Za-z0-9_]{3,24}$")) return [];
+            return Volatile.Read(ref users).Values.Where(u => u.Id != from && u.Name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                .OrderBy(u => u.Name, StringComparer.OrdinalIgnoreCase).Take(20).Select(u => new SocialUser(u.Id, u.Name)).ToArray();
+        }
+        public async Task<string> RequestAsync(string from, string name)
+        {
+            try { name = FriendLookup.Normalize(name); } catch (ArgumentException e) { throw new HubException(e.Message); }
             await gate.WaitAsync();
             try
             {
-                var target = users.Values.FirstOrDefault(u => u.Id == name || u.Name.Equals(name, StringComparison.OrdinalIgnoreCase)) ?? throw new HubException("Пользователь не найден.");
-                if (target.Id == from || target.Friends.Contains(from)) throw new HubException("Некорректная заявка.");
+                var target = users.Values.FirstOrDefault(u => u.Id == name || u.Name.Equals(name, StringComparison.OrdinalIgnoreCase)) ?? throw new HubException("Аккаунт Starlight не найден на этом сервисе. Проверьте имя или ID и убедитесь, что вы с другом подключены к одному сервису друзей.");
+                if (target.Id == from) throw new HubException("Нельзя добавить самого себя.");
+                if (target.Friends.Contains(from)) throw new HubException("Этот пользователь уже в друзьях.");
+                if (target.Requests.Contains(from)) return target.Id;
                 var updated = new Dictionary<string, User>(users) { [target.Id] = target with { Requests = new(target.Requests) { from } } }; await SaveAsync(updated);
+                return target.Id;
             }
             finally { gate.Release(); }
         }
@@ -120,7 +130,8 @@ namespace Starlight.Server
                 var user = Get(id); var friend = Get(other);
                 if (!user.Requests.Contains(other)) throw new HubException("Нет входящей заявки.");
                 var requests = new HashSet<string>(user.Requests); requests.Remove(other);
-                var updated = new Dictionary<string, User>(users) { [id] = user with { Friends = new(user.Friends) { other }, Requests = requests }, [other] = friend with { Friends = new(friend.Friends) { id } } };
+                var reverseRequests = new HashSet<string>(friend.Requests); reverseRequests.Remove(id);
+                var updated = new Dictionary<string, User>(users) { [id] = user with { Friends = new(user.Friends) { other }, Requests = requests }, [other] = friend with { Friends = new(friend.Friends) { id }, Requests = reverseRequests } };
                 await SaveAsync(updated);
             }
             finally { gate.Release(); }
@@ -131,14 +142,17 @@ namespace Starlight.Server
             try
             {
                 var a = Get(id); var b = Get(other); var af = new HashSet<string>(a.Friends); var bf = new HashSet<string>(b.Friends); var ar = new HashSet<string>(a.Requests);
-                af.Remove(other); bf.Remove(id); ar.Remove(other);
-                await SaveAsync(new(users) { [id] = a with { Friends = af, Requests = ar }, [other] = b with { Friends = bf } });
+                var br = new HashSet<string>(b.Requests);
+                af.Remove(other); bf.Remove(id); ar.Remove(other); br.Remove(id);
+                await SaveAsync(new(users) { [id] = a with { Friends = af, Requests = ar }, [other] = b with { Friends = bf, Requests = br } });
             }
             finally { gate.Release(); }
         }
         private async Task SaveAsync(Dictionary<string, User> updated)
         {
-            await File.WriteAllTextAsync(file + ".tmp", JsonSerializer.Serialize(updated)); File.Move(file + ".tmp", file, true); Volatile.Write(ref users, updated);
+            try { await storage.SaveAsync(updated); }
+            catch (AccountStorageConflictException) { Volatile.Write(ref users, await storage.LoadAsync()); throw new HubException("Сервис обновляется. Повторите действие."); }
+            Volatile.Write(ref users, updated);
         }
         public bool AreFriends(string a, string b) => Get(a).Friends.Contains(b);
     }

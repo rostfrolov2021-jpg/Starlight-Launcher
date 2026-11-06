@@ -20,9 +20,11 @@ public sealed class SocialHub(SocialStore store, RelayRooms rooms, NatMediator n
     {
         var user = store.Get(Id);
         return user.Friends.Select(id => { var u = store.Get(id); var p = store.Online.GetValueOrDefault(id); return new Friend(id, u.Name, p?.Status ?? "Не в сети", p?.Room); })
-            .Concat(user.Requests.Select(id => new Friend(id, store.Get(id).Name, "Заявка в друзья", null, true))).ToArray();
+            .Concat(user.Requests.Where(id => !user.Friends.Contains(id)).Select(id => new Friend(id, store.Get(id).Name, "Входящая заявка · нажмите «Принять»", null, true)))
+            .Concat(store.Outgoing(Id).Where(u => !user.Requests.Contains(u.Id)).Select(u => new Friend(u.Id, u.Name, "Заявка отправлена · ожидает ответа", null, false, true))).ToArray();
     }
-    public async Task RequestFriend(string name) { await store.RequestAsync(Id, name); await Clients.All.SendAsync("FriendsChanged"); }
+    public async Task RequestFriend(string name) { var other = await store.RequestAsync(Id, name); await Clients.Groups(Id, other).SendAsync("FriendsChanged"); }
+    public SocialUser[] SearchUsers(string prefix) => store.Search(Id, prefix);
     public async Task AcceptFriend(string other) { await store.AcceptAsync(Id, other); await Clients.Groups(Id, other).SendAsync("FriendsChanged"); }
     public async Task RemoveFriend(string other) { await store.RemoveAsync(Id, other); await Clients.Groups(Id, other).SendAsync("FriendsChanged"); }
     public async Task SetPresence(Presence presence)

@@ -51,8 +51,31 @@ public sealed partial class MainViewModel
     public AsyncCommand SaveServerOptions { get; private set; } = null!;
     public AsyncCommand ReloadServerOptions { get; private set; } = null!;
     public AsyncCommand CopyServerAddress { get; private set; } = null!;
+    public AsyncCommand DeleteServer { get; private set; } = null!;
+    public AsyncCommand RestoreDeletedServer { get; private set; } = null!;
+    public AsyncCommand OpenDeletedServers { get; private set; } = null!;
+    public Func<LocalServer, Task<bool>>? ConfirmServerDelete { get; set; }
+    private string? lastDeletedServer;
+    public bool CanRestoreServer => lastDeletedServer != null;
     private void InitializeServerPanel()
     {
+        var archive = new ServerArchive(paths);
+        DeleteServer = Command(async ct => {
+            var selected = SelectedServer ?? throw new InvalidOperationException("Выберите сервер для удаления.");
+            if (SelectedServerRunning) throw new InvalidOperationException("Сначала остановите выбранный сервер.");
+            if (ConfirmServerDelete == null || !await ConfirmServerDelete(selected)) return;
+            lastDeletedServer = await archive.ArchiveAsync(selected, ct);
+            Servers.Remove(selected); SelectedServer = Servers.FirstOrDefault();
+            this.RaisePropertyChanged(nameof(CanRestoreServer));
+            ServerOptionsStatus = Status = "Сервер удалён из списка. Мир и настройки сохранены в архиве. Удаление можно отменить.";
+        });
+        RestoreDeletedServer = Command(async ct => {
+            var location = lastDeletedServer ?? throw new InvalidOperationException("Нет удалённого сервера для восстановления.");
+            var restored = await archive.RestoreAsync(location, ct);
+            Servers.Add(restored); SelectedServer = restored; lastDeletedServer = null;
+            this.RaisePropertyChanged(nameof(CanRestoreServer)); ServerOptionsStatus = Status = "Сервер восстановлен вместе с миром и настройками.";
+        });
+        OpenDeletedServers = Command(_ => { Directory.CreateDirectory(archive.Root); Shell.Open(archive.Root); return Task.CompletedTask; });
         SendServerCommand = new(async () => { if (await ConsoleAsync(() => ServerCommandText)) ServerCommandText = ""; });
         GrantOperator = new(async () => { await ConsoleAsync(() => "op " + ServerProperties.Player(OperatorName.Trim())); });
         RevokeOperator = new(async () => { await ConsoleAsync(() => "deop " + ServerProperties.Player(OperatorName.Trim())); });
@@ -88,7 +111,7 @@ public sealed partial class MainViewModel
     }
     private void ReadServerPanel()
     {
-        if (SelectedServer is not { } selected) return;
+        if (SelectedServer is not { } selected) { ServerLogs = "Выберите сервер."; ServerState = "Сервер не выбран"; this.RaisePropertyChanged(nameof(SelectedServerRunning)); return; }
         try
         {
             var options = ServerProperties.Read(Path.Combine(paths.Server(selected.Id), "server.properties"), selected.Kind == ServerKind.Nukkit);
