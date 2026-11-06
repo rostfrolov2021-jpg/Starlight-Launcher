@@ -1,0 +1,150 @@
+using System.Net;
+using System.Net.Http.Json;
+using System.Net.Sockets;
+using System.Net.WebSockets;
+using System.Text.Json;
+using System.Text.RegularExpressions;
+using Microsoft.AspNetCore.SignalR.Client;
+using Starlight.Domain;
+
+namespace Starlight.Infrastructure;
+
+public sealed class SocialClient(HttpClient http) : IAsyncDisposable
+{
+    public HubConnection? Hub { get; private set; }
+    public SocialSession? Session { get; private set; }
+    public Uri? BaseUri { get; private set; }
+    public event Action<ChatMessage>? Message;
+    public event Action? FriendsChanged;
+    public event Action<string>? GroupCreated;
+    public event Action<string, string, string>? VoiceOffer;
+    public event Action<string>? Notice;
+    private CancellationTokenSource tunnels = new();
+    private int hostPort;
+    private string? hostRoom;
+    private TcpListener? listener;
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<Guid, Task> connections = new();
+    public int NatPort { get; set; } = 5089;
+    public bool Connected => Hub?.State == HubConnectionState.Connected;
+    public async Task ConnectAsync(string url, string name, string password, bool register, CancellationToken ct)
+    {
+        name = name.Trim();
+        if (!Regex.IsMatch(name, "^[A-Za-z0-9_]{3,24}$")) throw new ArgumentException("Имя Starlight: 3–24 латинских буквы, цифры или _. Это не email и не Microsoft Client ID.");
+        if (string.IsNullOrEmpty(password) || password.Length > 256 || (register && password.Length < 12)) throw new ArgumentException(register ? "Для регистрации нужен пароль от 12 до 256 символов." : "Введите пароль аккаунта Starlight.");
+        var uri = ApiClient.ServiceUri(url);
+        if (uri.Scheme != "https" && !(uri.Scheme == "http" && uri.IsLoopback)) throw new ArgumentException("Внешний сервер связи должен использовать HTTPS.");
+        await DisconnectAsync(); BaseUri = uri;
+        using var response = await http.PostAsJsonAsync(new Uri(uri, register ? "auth/register" : "auth/login"), new SocialLogin(name, password), ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            string? reason = null;
+            try { var error = await response.Content.ReadFromJsonAsync<JsonElement>(ct); if (error.TryGetProperty("error", out var message)) reason = message.GetString(); } catch (JsonException) { }
+            throw new InvalidOperationException(reason ?? response.StatusCode switch {
+                HttpStatusCode.Unauthorized => "Неверное имя или пароль Starlight. Если аккаунта ещё нет, нажмите «Регистрация».",
+                HttpStatusCode.TooManyRequests => "Слишком много попыток входа. Подождите минуту и повторите.",
+                HttpStatusCode.NotFound => "По этому адресу нет сервиса аккаунтов Starlight. Привяжите API в настройках.",
+                _ => $"Сервис аккаунтов вернул HTTP {(int)response.StatusCode}. Проверьте адрес и состояние сервиса." });
+        }
+        Session = await response.Content.ReadFromJsonAsync<SocialSession>(ct) ?? throw new InvalidDataException();
+        Hub = new HubConnectionBuilder().WithUrl(new Uri(uri, "hub"), options => options.AccessTokenProvider = () => Task.FromResult<string?>(Session.Token)).WithAutomaticReconnect().Build();
+        Hub.On<ChatMessage>("Message", m => Message?.Invoke(m)); Hub.On("FriendsChanged", () => FriendsChanged?.Invoke());
+        Hub.On<string>("GroupCreated", id => GroupCreated?.Invoke(id));
+        Hub.On<string, string, string>("VoiceOffer", (id, endpoint, secret) => VoiceOffer?.Invoke(id, endpoint, secret));
+        Hub.On<string, string, string>("OpenTunnel", (room, stream, secret) => {
+            if (room == hostRoom) Track(HandleHostAsync(room, stream, secret, tunnels.Token));
+        });
+        Hub.Reconnecting += _ => { Notice?.Invoke("Связь прервана. Переподключение…"); return Task.CompletedTask; };
+        Hub.Reconnected += async _ => { hostRoom = null; await StopTunnelsAsync(); Notice?.Invoke("Связь восстановлена. Опубликуйте сервер заново."); FriendsChanged?.Invoke(); };
+        try { await Hub.StartAsync(ct); }
+        catch { await DisconnectAsync(); throw new InvalidOperationException(register ? "Аккаунт создан, но чат не подключился. Попробуйте «Войти»; повторная регистрация не нужна." : "Вход принят, но чат не подключился. Проверьте доступность WebSocket на сервисе."); }
+    }
+    public Task<Friend[]> FriendsAsync(CancellationToken ct) => RequireHub().InvokeAsync<Friend[]>("Friends", ct);
+    private void Track(Task task)
+    {
+        var id = Guid.NewGuid(); connections[id] = task;
+        _ = task.ContinueWith(_ => connections.TryRemove(id, out var ignored), TaskScheduler.Default);
+    }
+    private async Task HandleHostAsync(string room, string stream, string secret, CancellationToken ct)
+    {
+        try
+        {
+            using var tcp = new TcpClient(); await tcp.ConnectAsync(IPAddress.Loopback, hostPort, ct);
+            if (await PeerTunnel.TryBridgeAsync(tcp.GetStream(), BaseUri!.Host, NatPort, secret, false, ct, () => Notice?.Invoke("Маршрут: P2P"))) return;
+            Notice?.Invoke("Маршрут: relay");
+            using var socket = await SocketAsync(room, stream, "host", ct); await BridgeAsync(tcp.GetStream(), socket, ct);
+        }
+        catch (Exception e) when (e is not OutOfMemoryException) { Notice?.Invoke("Туннель закрыт: " + e.GetType().Name); }
+    }
+    public HubConnection RequireHub() => Connected ? Hub! : throw new InvalidOperationException("Подключитесь к серверу Starlight.");
+    public async Task<string> HostAsync(int port, string serverName, CancellationToken ct)
+    {
+        hostPort = port; hostRoom = await RequireHub().InvokeAsync<string>("HostRoom", ct);
+        await RequireHub().InvokeAsync("SetPresence", new Presence("Хостит: " + serverName, hostRoom), ct); return hostRoom;
+    }
+    public async Task StopHostingAsync(CancellationToken ct)
+    {
+        if (hostRoom != null && Connected) { await Hub!.InvokeAsync("CloseRoom", hostRoom, ct); await Hub!.InvokeAsync("SetPresence", new Presence("В сети"), ct); }
+        hostRoom = null; await StopTunnelsAsync();
+    }
+    public async Task<int> JoinAsync(string room, CancellationToken ct)
+    {
+        await StopTunnelsAsync(); listener = new TcpListener(IPAddress.Loopback, 0); listener.Start();
+        var port = ((IPEndPoint)listener.LocalEndpoint).Port; _ = AcceptLoopAsync(room, listener, tunnels.Token); ct.ThrowIfCancellationRequested(); return port;
+    }
+    private async Task AcceptLoopAsync(string room, TcpListener server, CancellationToken ct)
+    {
+        try
+        {
+            while (!ct.IsCancellationRequested)
+            {
+                var tcp = await server.AcceptTcpClientAsync(ct); Track(HandleGuestAsync(room, tcp, ct));
+            }
+        }
+        catch (Exception e) when (e is OperationCanceledException or SocketException) { }
+    }
+    private async Task HandleGuestAsync(string room, TcpClient tcp, CancellationToken ct)
+    {
+        using (tcp)
+        try
+        {
+            var stream = Guid.NewGuid().ToString("N"); var secret = VoiceService.NewSecret(); await RequireHub().InvokeAsync("OpenTunnel", room, stream, secret, ct);
+            if (await PeerTunnel.TryBridgeAsync(tcp.GetStream(), BaseUri!.Host, NatPort, secret, true, ct, () => Notice?.Invoke("Маршрут: P2P"))) return;
+            Notice?.Invoke("Маршрут: relay");
+            using var socket = await SocketAsync(room, stream, "guest", ct); await BridgeAsync(tcp.GetStream(), socket, ct);
+        }
+        catch (Exception e) when (e is not OutOfMemoryException) { Notice?.Invoke("Соединение с другом закрыто: " + e.GetType().Name); }
+    }
+    private async Task<ClientWebSocket> SocketAsync(string room, string stream, string role, CancellationToken ct)
+    {
+        var uri = new UriBuilder(new Uri(BaseUri!, $"relay/{Uri.EscapeDataString(room)}/{Uri.EscapeDataString(stream)}/{role}")) { Scheme = BaseUri!.Scheme == "https" ? "wss" : "ws" };
+        var socket = new ClientWebSocket(); socket.Options.SetRequestHeader("Authorization", "Bearer " + Session!.Token);
+        try { await socket.ConnectAsync(uri.Uri, ct); return socket; } catch { socket.Dispose(); throw; }
+    }
+    public static async Task BridgeAsync(Stream tcp, WebSocket socket, CancellationToken ct)
+    {
+        using var stop = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        async Task Upload()
+        {
+            var buffer = new byte[32 * 1024]; int read;
+            while ((read = await tcp.ReadAsync(buffer, stop.Token)) > 0) await socket.SendAsync(buffer.AsMemory(0, read), WebSocketMessageType.Binary, true, stop.Token);
+        }
+        async Task Download()
+        {
+            var buffer = new byte[32 * 1024];
+            while (!stop.IsCancellationRequested)
+            {
+                var read = await socket.ReceiveAsync(buffer.AsMemory(), stop.Token);
+                if (read.MessageType == WebSocketMessageType.Close) break;
+                await tcp.WriteAsync(buffer.AsMemory(0, read.Count), stop.Token);
+            }
+        }
+        var upload = Upload(); var download = Download(); await Task.WhenAny(upload, download); await stop.CancelAsync();
+        try { await Task.WhenAll(upload, download); } catch (OperationCanceledException) { }
+    }
+    private async Task StopTunnelsAsync() { await tunnels.CancelAsync(); listener?.Stop(); listener = null; await Task.WhenAll(connections.Values); tunnels.Dispose(); tunnels = new(); }
+    public async Task DisconnectAsync()
+    {
+        await StopTunnelsAsync(); if (Hub != null) { await Hub.DisposeAsync(); Hub = null; } Session = null; hostRoom = null;
+    }
+    public async ValueTask DisposeAsync() { await DisconnectAsync(); tunnels.Dispose(); }
+}

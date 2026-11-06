@@ -1,0 +1,18 @@
+services:
+  starlight:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5088:5088"
+      - "5089:5089/udp"
+    volumes:
+      - ./data:/data
+      - ./releases:/releases:ro
+    environment:
+      STARLIGHT_DATA: /data/users.json
+      STARLIGHT_NAT_PORT: 5089
+      STARLIGHT_RELEASES: /releases
+      STARLIGHT_MICROSOFT_CLIENT_ID: ${STARLIGHT_MICROSOFT_CLIENT_ID:-}
+      STARLIGHT_CURSEFORGE_KEY: ${STARLIGHT_CURSEFORGE_KEY:-}

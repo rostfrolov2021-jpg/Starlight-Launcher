@@ -1,0 +1,17 @@
+<Application xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="Starlight.Desktop.App" RequestedThemeVariant="Dark">
+  <Application.Styles>
+    <FluentTheme><FluentTheme.Palettes><ColorPaletteResources x:Key="Dark" Accent="#80A891"/></FluentTheme.Palettes></FluentTheme>
+    <Style Selector="Window"><Setter Property="FontFamily" Value="Segoe UI"/><Setter Property="Foreground" Value="#E5E7EB"/><Setter Property="Background" Value="#1C1E22"/></Style>
+    <Style Selector="TextBlock.muted"><Setter Property="Foreground" Value="#A0A6AF"/></Style>
+    <Style Selector="TextBlock.title"><Setter Property="FontSize" Value="26"/><Setter Property="FontWeight" Value="SemiBold"/></Style>
+    <Style Selector="TextBlock.label"><Setter Property="Foreground" Value="#B6BDC5"/><Setter Property="FontSize" Value="12"/><Setter Property="Margin" Value="0,8,0,5"/></Style>
+    <Style Selector="Border.card"><Setter Property="Background" Value="#22252A"/><Setter Property="BorderBrush" Value="#373B42"/><Setter Property="BorderThickness" Value="1"/><Setter Property="CornerRadius" Value="5"/><Setter Property="Padding" Value="18"/></Style>
+    <Style Selector="Button"><Setter Property="CornerRadius" Value="4"/><Setter Property="Padding" Value="16,11"/><Setter Property="Cursor" Value="Hand"/></Style>
+    <Style Selector="Button.primary"><Setter Property="Background" Value="#496C5C"/><Setter Property="Foreground" Value="White"/><Setter Property="FontWeight" Value="SemiBold"/></Style>
+    <Style Selector="Button.nav"><Setter Property="Background" Value="Transparent"/><Setter Property="HorizontalContentAlignment" Value="Left"/><Setter Property="HorizontalAlignment" Value="Stretch"/><Setter Property="Margin" Value="0,3"/></Style>
+    <Style Selector="Button.nav.active"><Setter Property="Background" Value="#303A35"/><Setter Property="Foreground" Value="#D4E5DB"/></Style>
+    <Style Selector="TextBox"><Setter Property="CornerRadius" Value="4"/><Setter Property="MinHeight" Value="40"/></Style>
+    <Style Selector="ComboBox"><Setter Property="HorizontalAlignment" Value="Stretch"/><Setter Property="MinHeight" Value="40"/></Style>
+    <Style Selector="ListBox"><Setter Property="Background" Value="#1B1E22"/></Style>
+  </Application.Styles>
+</Application>

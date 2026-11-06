@@ -1,0 +1,3 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup><EmbeddedResource Include="release-public.pem" LogicalName="Starlight.ReleasePublicKey" /></ItemGroup>
+</Project>

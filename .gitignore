@@ -1,0 +1,17 @@
+.tools/
+.nuget/
+**/bin/
+**/obj/
+artifacts/
+TestResults/
+.vs/
+*.user
+*.log
+*-private.pem
+*.pfx
+*.p12
+.env
+.env.*
+!.env.example
+deploy/data/
+deploy/releases/

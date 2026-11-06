@@ -1,0 +1,16 @@
+name: Build and test
+on: [push, pull_request]
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - run: dotnet restore Starlight.sln
+      - run: dotnet build Starlight.sln -c Release --no-restore
+      - run: dotnet tests/Starlight.Tests/bin/Release/net8.0/Starlight.Tests.dll

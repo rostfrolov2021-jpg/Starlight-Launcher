@@ -1,0 +1,42 @@
+name: Publish Windows release
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: starlight-release
+  cancel-in-progress: false
+jobs:
+  release:
+    if: github.ref == 'refs/heads/main'
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Check signing key
+        shell: pwsh
+        env:
+          RELEASE_KEY: ${{ secrets.STARLIGHT_RELEASE_PRIVATE_KEY }}
+        run: |
+          if (-not $env:RELEASE_KEY) { throw 'Repository secret STARLIGHT_RELEASE_PRIVATE_KEY is missing.' }
+          [IO.File]::WriteAllText("$env:RUNNER_TEMP/starlight-release.pem", $env:RELEASE_KEY)
+      - name: Ensure installer compiler
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "${env:ProgramFiles(x86)}/Inno Setup 6/ISCC.exe")) {
+            choco install innosetup --yes --no-progress
+            if ($LASTEXITCODE -ne 0) { throw 'Inno Setup installation failed.' }
+          }
+      - name: Build, sign and publish
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: ./scripts/publish-github.ps1 -Repository '${{ github.repository }}' -SigningKeyPath "$env:RUNNER_TEMP/starlight-release.pem"
+      - name: Remove temporary signing key
+        if: always()
+        shell: pwsh
+        run: Remove-Item -LiteralPath "$env:RUNNER_TEMP/starlight-release.pem" -Force -ErrorAction SilentlyContinue

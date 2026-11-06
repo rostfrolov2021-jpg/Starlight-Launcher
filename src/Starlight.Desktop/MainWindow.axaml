@@ -1,0 +1,167 @@
+<Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Starlight.Desktop.MainWindow" Title="Starlight Launcher" Width="1260" Height="840" MinWidth="1050" MinHeight="720"
+        Background="#1C1E22" Icon="avares://Starlight/Assets/starlight.png">
+  <Grid ColumnDefinitions="210,*" RowDefinitions="*,76">
+    <Border Grid.RowSpan="2" Background="#17191D" BorderBrush="#33363C" BorderThickness="0,0,1,0" Padding="16,26,14,20">
+      <DockPanel>
+        <StackPanel DockPanel.Dock="Top" Spacing="5" Margin="0,0,0,32">
+          <TextBlock Text="Starlight" FontSize="21" FontWeight="Bold" Foreground="#A8BAB2" />
+          <TextBlock Text="Minecraft Launcher" FontSize="9" LetterSpacing="0" Foreground="#A8BAB2" Margin="0,4,0,0"/>
+        </StackPanel>
+        <StackPanel DockPanel.Dock="Bottom" Spacing="10">
+          <Border Background="#25282E" CornerRadius="4" Padding="12">
+            <StackPanel Spacing="5"><TextBlock Text="АКТИВНЫЙ ПРОФИЛЬ" FontSize="10" Foreground="#A8BAB2"/><ComboBox ItemsSource="{Binding Accounts}" SelectedItem="{Binding SelectedAccount}" FontSize="11"/></StackPanel>
+          </Border>
+          <Button Content="Доступно обновление" IsVisible="{Binding UpdateAvailable}" Command="{Binding Navigate}" CommandParameter="8" Classes="primary" FontSize="11"/><TextBlock Text="{Binding AppVersion}" Classes="muted" FontSize="11" Margin="8,6"/>
+        </StackPanel>
+        <StackPanel>
+          <TextBlock Text="ПРОСТРАНСТВО" FontSize="10" Foreground="#A8BAB2" Margin="10,0,0,10" LetterSpacing="1.5"/>
+          <Button Classes="nav" Classes.active="{Binding IsLibrary}" Content="Мои сборки" Command="{Binding Navigate}" CommandParameter="0"/>
+          <Button Classes="nav" Classes.active="{Binding IsMods}" Content="Моды" Command="{Binding Navigate}" CommandParameter="1"/>
+          <Button Classes="nav" Classes.active="{Binding IsServers}" Content="Серверы" Command="{Binding Navigate}" CommandParameter="2"/>
+          <Button Classes="nav" Classes.active="{Binding IsSocial}" Content="Друзья и чат" Command="{Binding Navigate}" CommandParameter="3"/>
+          <Border Height="1" Background="#33363C" Margin="8,24"/>
+          <TextBlock Text="ЛАУНЧЕР" FontSize="10" Foreground="#A8BAB2" Margin="10,0,0,10" LetterSpacing="1.5"/>
+          <Button Classes="nav" Classes.active="{Binding IsAccounts}" Content="Аккаунты" Command="{Binding Navigate}" CommandParameter="4"/>
+          <Button Classes="nav" Classes.active="{Binding IsSettings}" Content="Настройки" Command="{Binding Navigate}" CommandParameter="5"/>
+          <Button Classes="nav" Classes.active="{Binding IsUpdates}" Content="Обновления" Command="{Binding Navigate}" CommandParameter="8"/>
+          <Button Classes="nav" Classes.active="{Binding IsLogs}" Content="Консоль" Command="{Binding Navigate}" CommandParameter="6"/>
+        </StackPanel>
+      </DockPanel>
+    </Border>
+    <ScrollViewer x:Name="MainScroll" Grid.Column="1" VerticalScrollBarVisibility="Auto">
+      <Grid Margin="34,28">
+        <StackPanel IsVisible="{Binding IsLibrary}" Spacing="24">
+          <Grid ColumnDefinitions="*,Auto"><StackPanel><TextBlock Text="Мои сборки" Classes="title"/><TextBlock Text="Выберите сборку для запуска или добавьте новую." Classes="muted" Margin="0,8,0,0"/></StackPanel><Border Grid.Column="1" VerticalAlignment="Center" Background="#292F33" CornerRadius="4" Padding="14,8"><TextBlock Text="Java Edition" Foreground="#A8BAB2" FontSize="10" LetterSpacing="1"/></Border></Grid>
+          <Border Height="140" CornerRadius="7" ClipToBounds="True" BorderBrush="#3A4853" BorderThickness="1">
+            <Viewbox Stretch="UniformToFill"><Canvas Width="980" Height="160">
+              <Canvas.Background><LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%"><GradientStop Color="#352347" Offset="0"/><GradientStop Color="#141E34" Offset="0.6"/><GradientStop Color="#16404D" Offset="1"/></LinearGradientBrush></Canvas.Background>
+              <Ellipse Width="104" Height="104" Fill="#46527B" Canvas.Left="702" Canvas.Top="8"/><Ellipse Width="72" Height="72" Fill="#7B7CAC" Canvas.Left="718" Canvas.Top="24"/>
+              <Polygon Points="0,170 140,65 310,170" Fill="#353451"/><Polygon Points="100,170 310,20 535,170" Fill="#3E4C64"/><Polygon Points="310,20 310,170 535,170" Fill="#26334D"/><Polygon Points="310,20 268,56 300,49 318,63 338,40" Fill="#9EAFBE"/>
+              <Polygon Points="370,170 595,69 810,170" Fill="#29475B"/><Polygon Points="560,170 775,52 980,170" Fill="#22616A"/><Polygon Points="775,52 775,170 980,170" Fill="#1D424F"/>
+              <Ellipse Width="3" Height="3" Fill="#C8CBD9" Canvas.Left="164" Canvas.Top="24"/><Ellipse Width="2" Height="2" Fill="#C8CBD9" Canvas.Left="470" Canvas.Top="38"/><Ellipse Width="3" Height="3" Fill="#C8CBD9" Canvas.Left="875" Canvas.Top="22"/>
+            </Canvas></Viewbox>
+          </Border>
+          <WrapPanel><Button Content="Добавить сборку" Classes="primary" Command="{Binding Navigate}" CommandParameter="7" Margin="0,0,8,0"/><Button Content="Открыть папку сборки" Command="{Binding OpenInstanceFolder}"/></WrapPanel>
+          <Grid ColumnDefinitions="*,330">
+            <StackPanel Spacing="14" Margin="0,0,22,0">
+              <TextBlock Text="Библиотека" FontSize="19" FontWeight="SemiBold"/>
+              <ListBox ItemsSource="{Binding Instances}" SelectedItem="{Binding SelectedInstance}" MinHeight="120" MaxHeight="250" Background="Transparent">
+                <ListBox.ItemTemplate><DataTemplate><Border Padding="8,12"><Grid ColumnDefinitions="52,*"><Border Background="#2C3337" CornerRadius="4" Width="42" Height="42"><TextBlock Text="{Binding Icon}" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="23" Foreground="#A8BAB2"/></Border><StackPanel Grid.Column="1" Spacing="5"><TextBlock Text="{Binding Name}" FontWeight="SemiBold"/><StackPanel Orientation="Horizontal" Spacing="12"><TextBlock Text="{Binding MinecraftVersion}" Classes="muted" FontSize="11"/><TextBlock Text="{Binding Loader}" Foreground="#A8BAB2" FontSize="11"/></StackPanel></StackPanel></Grid></Border></DataTemplate></ListBox.ItemTemplate>
+              </ListBox>
+              <TextBlock Text="{Binding InstanceInfo}" Classes="muted" FontSize="12" TextWrapping="Wrap"/>
+              <Button Classes="primary" Content="▶   Играть" Command="{Binding Launch}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="17" Padding="18,16"/>
+              <TextBlock Text="Первый запуск загрузит игру и подходящую Java." Classes="muted" FontSize="11" TextWrapping="Wrap"/>
+            </StackPanel>
+            <Border Grid.Column="1" Classes="card"><StackPanel Spacing="8">
+              <TextBlock Text="Новая сборка" FontSize="19" FontWeight="SemiBold"/>
+              <TextBlock Text="Отдельные моды, настройки и миры." Classes="muted" FontSize="11"/>
+              <TextBox Text="{Binding NewName}" Watermark="Название сборки"/>
+              <TextBlock Text="ВЕРСИЯ MINECRAFT" Classes="label"/><ComboBox ItemsSource="{Binding Versions}" SelectedItem="{Binding NewVersion}"/>
+              <Grid ColumnDefinitions="*,75"><StackPanel Margin="0,0,10,0"><TextBlock Text="ЗАГРУЗЧИК" Classes="label"/><ComboBox ItemsSource="{Binding Loaders}" SelectedItem="{Binding NewLoader}"/></StackPanel><StackPanel Grid.Column="1"><TextBlock Text="ИКОНКА" Classes="label"/><TextBox Text="{Binding NewIcon}" MaxLength="4"/></StackPanel></Grid>
+              <Expander Header="Дополнительно" HorizontalAlignment="Stretch"><StackPanel Spacing="8"><TextBox Text="{Binding LoaderVersion}" Watermark="Версия загрузчика: автоматически" FontSize="11"/><TextBlock Text="ПАМЯТЬ, МБ" Classes="label"/><NumericUpDown Value="{Binding NewMemory}" Minimum="512" Maximum="65536" Increment="512" FormatString="0"/></StackPanel></Expander>
+              <Button Content="＋  Создать сборку" Command="{Binding CreateInstance}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Margin="0,8,0,0"/>
+            </StackPanel></Border>
+          </Grid>
+        </StackPanel>
+        <StackPanel IsVisible="{Binding IsMods}" Spacing="22">
+          <TextBlock Text="Моды" Classes="title"/><TextBlock Text="{Binding InstanceInfo}" Classes="muted"/>
+          <ComboBox ItemsSource="{Binding Instances}" SelectedItem="{Binding SelectedInstance}"><ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name}"/></DataTemplate></ComboBox.ItemTemplate></ComboBox>
+          <Grid ColumnDefinitions="*,*">
+            <Border Classes="card" Margin="0,0,16,0"><StackPanel Spacing="12"><TextBlock Text="Установленные" FontSize="20"/><TextBlock Text="JAR-файлы из папки появляются автоматически." Classes="muted" TextWrapping="Wrap" FontSize="12"/><Button Content="Открыть папку модов ↗" Command="{Binding OpenMods}"/><ListBox Height="330" ItemsSource="{Binding Mods}" SelectedItem="{Binding SelectedMod}"><ListBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Label}" FontSize="12" TextTrimming="CharacterEllipsis"/></DataTemplate></ListBox.ItemTemplate></ListBox><WrapPanel><Button Content="Вкл. / выкл." Command="{Binding ToggleMod}" Margin="0,0,8,8"/><Button Content="Убрать в архив" Command="{Binding DeleteMod}"/></WrapPanel></StackPanel></Border>
+            <Border Grid.Column="1" Classes="card"><StackPanel Spacing="12"><TextBlock Text="Каталог модов" FontSize="20"/><TextBox Text="{Binding SearchQuery}" Watermark="Sodium, Iris, JourneyMap…"/><Grid ColumnDefinitions="*,Auto"><ComboBox ItemsSource="{Binding Sources}" SelectedItem="{Binding Source}" Margin="0,0,8,0"/><Button Grid.Column="1" Content="Поиск" Command="{Binding SearchMods}"/></Grid><ListBox Height="265" ItemsSource="{Binding SearchResults}" SelectedItem="{Binding SelectedResult}"><ListBox.ItemTemplate><DataTemplate><StackPanel Margin="4,8" Spacing="5"><TextBlock Text="{Binding Name}" FontWeight="SemiBold"/><TextBlock Text="{Binding Source}" Foreground="#A8BAB2" FontSize="10"/><TextBlock Text="{Binding Description}" TextWrapping="Wrap" MaxHeight="40" FontSize="11" Classes="muted"/></StackPanel></DataTemplate></ListBox.ItemTemplate></ListBox><Button Content="↓  Установить с зависимостями" Classes="primary" Command="{Binding InstallMod}" HorizontalAlignment="Stretch"/></StackPanel></Border>
+          </Grid>
+        </StackPanel>
+        <StackPanel IsVisible="{Binding IsServers}" Spacing="16">
+          <Grid ColumnDefinitions="*,Auto"><TextBlock Text="Серверы" Classes="title"/><TextBlock Grid.Column="1" Text="{Binding ServerState}" Classes="muted" VerticalAlignment="Center"/></Grid>
+          <Grid ColumnDefinitions="250,*">
+            <StackPanel Margin="0,0,16,0" Spacing="12">
+              <ListBox ItemsSource="{Binding Servers}" SelectedItem="{Binding SelectedServer}" Height="175"><ListBox.ItemTemplate><DataTemplate><StackPanel Margin="5,9" Spacing="5"><TextBlock Text="{Binding Name}" FontWeight="SemiBold"/><StackPanel Orientation="Horizontal" Spacing="10"><TextBlock Text="{Binding Version}" Classes="muted" FontSize="11"/><TextBlock Text="{Binding Kind}" Classes="muted" FontSize="11"/></StackPanel></StackPanel></DataTemplate></ListBox.ItemTemplate></ListBox>
+              <Grid ColumnDefinitions="*,*"><Button Content="Запустить" Command="{Binding StartServer}" Classes="primary" Margin="0,0,6,0" Padding="10,10"/><Button Grid.Column="1" Content="Остановить" Command="{Binding StopServer}" Padding="10,10"/></Grid>
+              <Button Content="Открыть папку сервера" Command="{Binding OpenServerFolder}" HorizontalAlignment="Stretch"/>
+              <Button Content="Пригласить друзей" Command="{Binding ShareServer}" HorizontalAlignment="Stretch"/>
+              <Expander Header="Создать сервер" HorizontalAlignment="Stretch"><StackPanel Spacing="9"><TextBox Text="{Binding ServerName}" Watermark="Название"/><TextBlock Text="Ядро" Classes="label"/><ComboBox ItemsSource="{Binding ServerKinds}" SelectedItem="{Binding NewServerKind}"/><TextBlock Text="{Binding CoreHint}" TextWrapping="Wrap" Classes="muted" FontSize="11"/><TextBlock Text="Версия Minecraft (Java)" Classes="label"/><ComboBox ItemsSource="{Binding Versions}" SelectedItem="{Binding NewVersion}"/><TextBlock Text="Порт" Classes="label"/><NumericUpDown Value="{Binding ServerPort}" Minimum="1024" Maximum="65535" FormatString="0"/><CheckBox IsChecked="{Binding AcceptedEula}" Content="Принимаю Minecraft EULA" FontSize="12"/><Button Content="Скачать и создать" Command="{Binding CreateServer}" Classes="primary"/></StackPanel></Expander>
+            </StackPanel>
+            <Border Grid.Column="1" Classes="card"><StackPanel Spacing="12">
+              <TextBlock Text="{Binding SelectedServer.Name}" FontSize="21" FontWeight="SemiBold"/>
+              <TabControl>
+                <TabItem Header="Консоль"><StackPanel Spacing="12" Margin="0,12,0,0">
+                  <TextBox Text="{Binding ServerLogs}" IsReadOnly="True" AcceptsReturn="True" Height="320" FontFamily="Cascadia Mono,Consolas,monospace" FontSize="11" TextWrapping="NoWrap" Background="#14181C" ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollBarVisibility="Auto"/>
+                  <Grid ColumnDefinitions="*,Auto"><TextBox Text="{Binding ServerCommandText}" Watermark="Команда: help, list, time set day…" Margin="0,0,8,0"><TextBox.KeyBindings><KeyBinding Gesture="Enter" Command="{Binding SendServerCommand}"/></TextBox.KeyBindings></TextBox><Button Grid.Column="1" Content="Отправить" Command="{Binding SendServerCommand}" Classes="primary"/></Grid>
+                  <WrapPanel><Button Content="Игроки" Command="{Binding ListServerPlayers}" Margin="0,0,8,8" Padding="12,8"/><Button Content="Сохранить мир" Command="{Binding SaveServerWorld}" Margin="0,0,8,8" Padding="12,8"/></WrapPanel>
+                  <Grid ColumnDefinitions="*,Auto,Auto"><TextBox Text="{Binding OperatorName}" Watermark="Ник игрока" Margin="0,0,8,0"/><Button Grid.Column="1" Content="Выдать OP" Command="{Binding GrantOperator}" Padding="12,8" Margin="0,0,8,0"/><Button Grid.Column="2" Content="Снять OP" Command="{Binding RevokeOperator}" Padding="12,8"/></Grid>
+                  <TextBlock Text="Команды выполняются от имени сервера. Начальный / необязателен. Для консоли запускайте сервер кнопкой слева." Classes="muted" TextWrapping="Wrap" FontSize="11"/>
+                </StackPanel></TabItem>
+                <TabItem Header="Настройки"><StackPanel Spacing="12" Margin="0,12,0,0">
+                  <TextBlock Text="{Binding ServerEdition}" Classes="muted"/>
+                  <CheckBox Content="Проверять аккаунты игроков (online-mode / Xbox)" IsChecked="{Binding ServerOnlineMode}" FontSize="12"/>
+                  <TextBlock Text="При отключении проверки игрок может выбрать чужой ник. Для открытого сервера используйте проверку аккаунтов или отдельную систему авторизации." IsVisible="{Binding !ServerOnlineMode}" Foreground="#D9BB85" TextWrapping="Wrap" FontSize="12"/>
+                  <CheckBox Content="Разрешить подключения по сети" IsChecked="{Binding ServerNetworkAccess}"/>
+                  <CheckBox Content="Вход только по белому списку" IsChecked="{Binding ServerWhiteList}"/>
+                  <Grid ColumnDefinitions="*,*"><StackPanel Margin="0,0,12,0"><TextBlock Text="Порт" Classes="label"/><NumericUpDown Value="{Binding ManagedServerPort}" Minimum="1024" Maximum="65535" FormatString="0"/></StackPanel><StackPanel Grid.Column="1"><TextBlock Text="Мест для игроков" Classes="label"/><NumericUpDown Value="{Binding ServerMaxPlayers}" Minimum="1" Maximum="1000" FormatString="0"/></StackPanel></Grid>
+                  <TextBlock Text="Описание сервера" Classes="label"/><TextBox Text="{Binding ServerMotd}" MaxLength="160"/>
+                  <WrapPanel><Button Content="Сохранить настройки" Command="{Binding SaveServerOptions}" Classes="primary" Margin="0,0,8,8"/><Button Content="Перечитать" Command="{Binding ReloadServerOptions}"/></WrapPanel>
+                  <TextBlock Text="Остановите сервер перед сохранением, затем запустите снова. Команды whitelist add Ник и whitelist remove Ник управляют белым списком." Classes="muted" TextWrapping="Wrap" FontSize="12"/>
+                </StackPanel></TabItem>
+                <TabItem Header="Подключение"><StackPanel Spacing="16" Margin="0,12,0,0">
+                  <TextBlock Text="{Binding ServerAddresses}" TextWrapping="Wrap" FontSize="18"/><Button Content="Скопировать адрес" Command="{Binding CopyServerAddress}"/>
+                  <TextBlock Text="Для друзей в одной сети включите сетевой доступ на вкладке «Настройки», сохраните и перезапустите сервер. Используйте адрес этого компьютера в локальной сети." Classes="muted" TextWrapping="Wrap"/>
+                  <TextBlock Text="Для подключения через интернет: внешний IP + порт, разрешение входящих соединений в брандмауэре и перенаправление порта на роутере. Java использует TCP, Nukkit — UDP. При CGNAT нужен публичный IP или туннель." Classes="muted" TextWrapping="Wrap"/>
+                  <TextBlock Text="Приглашения Starlight используют общий публичный сервис и не требуют прямого открытия игрового порта. Локальный сервис на 127.0.0.1 доступен только на вашем компьютере. Туннель Starlight поддерживает Java Edition." Classes="muted" TextWrapping="Wrap"/>
+                  <TextBlock Text="Моды клиента должны соответствовать серверу Forge/Fabric/гибриду. Nukkit принимает только Bedrock-клиенты." Classes="muted" TextWrapping="Wrap"/>
+                </StackPanel></TabItem>
+              </TabControl>
+              <TextBlock Text="{Binding ServerOptionsStatus}" Classes="muted" TextWrapping="Wrap" FontSize="11"/>
+            </StackPanel></Border>
+          </Grid>
+        </StackPanel>
+        <StackPanel IsVisible="{Binding IsSocial}" Spacing="16">
+          <TextBlock Text="Друзья и чат" Classes="title"/><TextBlock Text="{Binding SocialStatus}" Classes="muted" TextWrapping="Wrap"/><TextBlock Text="Аккаунт Starlight для друзей и чата — отдельный от Microsoft. Имя: 3–24 латинских буквы, цифры или _. Пароль при регистрации: от 12 символов." Classes="muted" TextWrapping="Wrap" FontSize="12"/>
+          <Border Classes="card"><Grid ColumnDefinitions="*,*,Auto,Auto"><TextBox Text="{Binding SocialName}" Watermark="Имя Starlight" Margin="0,0,8,0"/><TextBox Grid.Column="1" Text="{Binding SocialPassword}" PasswordChar="●" Watermark="Пароль" Margin="0,0,8,0"/><Button Grid.Column="2" Content="Войти" Command="{Binding ConnectSocial}" Classes="primary" Margin="0,0,8,0"/><Button Grid.Column="3" Content="Регистрация" Command="{Binding RegisterSocial}"/></Grid></Border>
+          <Grid ColumnDefinitions="280,*">
+            <Border Classes="card" Margin="0,0,16,0"><StackPanel Spacing="10"><TextBlock Text="Друзья" FontSize="20"/><TextBox Text="{Binding FriendName}" Watermark="Имя или Starlight ID"/><Button Content="＋ Отправить заявку" Command="{Binding AddFriend}"/><ListBox ItemsSource="{Binding Friends}" SelectedItem="{Binding SelectedFriend}" Height="175"><ListBox.ItemTemplate><DataTemplate><StackPanel Spacing="4"><TextBlock Text="{Binding Name}"/><TextBlock Text="{Binding Status}" FontSize="10" Foreground="#A8BAB2" TextWrapping="Wrap"/></StackPanel></DataTemplate></ListBox.ItemTemplate></ListBox><WrapPanel><Button Content="Принять" Command="{Binding AcceptFriend}" Margin="0,0,6,6"/><Button Content="Удалить" Command="{Binding RemoveFriend}"/></WrapPanel><Button Content="↗ Присоединиться к игре" Command="{Binding JoinFriend}" Classes="primary" FontSize="12"/><Button Content="Обновить список" Command="{Binding RefreshFriends}" FontSize="11"/></StackPanel></Border>
+            <Border Grid.Column="1" Classes="card"><StackPanel Spacing="10"><Grid ColumnDefinitions="*,Auto"><TextBlock Text="Чат" FontSize="20"/><Button Grid.Column="1" Content="Группа со всеми друзьями" Command="{Binding CreateGroup}" FontSize="11"/></Grid><Grid ColumnDefinitions="Auto,*"><CheckBox Content="В группу" IsChecked="{Binding SendToGroup}" Margin="0,0,8,0"/><ComboBox Grid.Column="1" ItemsSource="{Binding Groups}" SelectedItem="{Binding SelectedGroup}" FontSize="11"/></Grid><TextBox Text="{Binding Chat}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" Height="235" ScrollViewer.VerticalScrollBarVisibility="Auto"/><TextBox Text="{Binding MessageText}" Watermark="Сообщение выбранному другу…" MaxLength="4000"/><Button Content="Отправить →" Command="{Binding SendMessage}" HorizontalAlignment="Right"/></StackPanel></Border>
+          </Grid>
+          <Border Classes="card"><StackPanel Spacing="10"><TextBlock Text="{Binding VoiceStatus}" Foreground="#A8BAB2"/><WrapPanel><Button Content="Позвонить" Command="{Binding CallFriend}" Margin="0,0,8,0"/><Button Content="Принять вызов" Command="{Binding AcceptCall}" Margin="0,0,8,0"/><Button Content="Завершить" Command="{Binding EndCall}" Margin="0,0,16,0"/><CheckBox Content="Микрофон выкл." IsChecked="{Binding Muted}" Margin="0,0,12,0"/><CheckBox Content="Звук выкл." IsChecked="{Binding Deafened}"/></WrapPanel><Grid ColumnDefinitions="Auto,*"><TextBlock Text="Громкость" VerticalAlignment="Center" Classes="muted"/><Slider Grid.Column="1" Value="{Binding Volume}" Minimum="0" Maximum="1" Margin="20,0"/></Grid></StackPanel></Border>
+        </StackPanel>
+        <StackPanel IsVisible="{Binding IsAccounts}" Spacing="22">
+          <TextBlock Text="Ваши аккаунты" Classes="title"/><TextBlock Text="Переключайтесь между профилями в нижней части боковой панели." Classes="muted"/>
+          <Grid ColumnDefinitions="*,*"><Border Classes="card" Margin="0,0,18,0"><StackPanel Spacing="16"><TextBlock Text="Локальный профиль" FontSize="22"/><TextBlock Text="Для одиночной игры и серверов без проверки лицензии." Classes="muted" TextWrapping="Wrap"/><TextBox Text="{Binding Nickname}" Watermark="Никнейм" MaxLength="16"/><Button Content="＋ Добавить Offline-профиль" Command="{Binding AddOffline}"/></StackPanel></Border><Border Grid.Column="1" Classes="card"><StackPanel Spacing="16"><TextBlock Text="Microsoft" FontSize="22"/><TextBlock Text="Войдите на официальной странице Microsoft по одноразовому коду. Нужна лицензия Minecraft Java." Classes="muted" TextWrapping="Wrap"/><Button Content="Получить код входа" Command="{Binding MicrosoftLogin}" Classes="primary"/><TextBlock Text="{Binding LoginHint}" Classes="muted" TextWrapping="Wrap"/><StackPanel IsVisible="{Binding HasLoginCode}" Spacing="10"><TextBlock Text="{Binding UserCode}" FontSize="30" FontFamily="Consolas"/><WrapPanel><Button Content="Скопировать код" Command="{Binding CopyMicrosoftCode}" Margin="0,0,8,8"/><Button Content="Открыть Microsoft" Command="{Binding OpenMicrosoftPage}"/></WrapPanel></StackPanel></StackPanel></Border></Grid>
+          <Border Classes="card"><StackPanel Spacing="14"><TextBlock Text="Защищённое хранилище" FontSize="21"/><TextBlock Text="Токены Microsoft сохраняются только в зашифрованном виде. Введите пароль от 10 символов; при следующем запуске разблокируйте хранилище тем же паролем." Classes="muted" TextWrapping="Wrap"/><TextBox Text="{Binding VaultPassword}" PasswordChar="●" Watermark="Пароль хранилища"/><WrapPanel><Button Content="Разблокировать" Command="{Binding UnlockVault}" Margin="0,0,10,0"/><Button Content="Сохранить аккаунты" Command="{Binding SaveAccounts}"/></WrapPanel><ListBox ItemsSource="{Binding Accounts}" SelectedItem="{Binding SelectedAccount}" MinHeight="80"/></StackPanel></Border>
+        </StackPanel>
+        <StackPanel IsVisible="{Binding IsSettings}" Spacing="20" MaxWidth="720" HorizontalAlignment="Left">
+          <TextBlock Text="Настройки" Classes="title"/><TextBlock Text="Подключения и данные вашего лаунчера." Classes="muted"/>
+          <Border Classes="card"><StackPanel Spacing="8"><TextBlock Text="MICROSOFT CLIENT ID" Classes="label"/><TextBox Text="{Binding MicrosoftClientId}" Watermark="Application (client) ID из регистрации приложения"/><TextBlock Text="Нужен Application (client) ID вашего приложения Microsoft Entra, не Directory (tenant) ID. Включите личные Microsoft accounts и Allow public client flows. После изменения нажмите «Сохранить настройки»." Classes="muted" FontSize="12" TextWrapping="Wrap"/><Button Content="Как зарегистрировать приложение Microsoft" Command="{Binding MicrosoftSetupHelp}" Margin="0,8,0,8"/><TextBlock Text="CURSEFORGE API KEY" Classes="label"/><TextBox Text="{Binding CurseForgeKey}" PasswordChar="●" Watermark="Ключ разработчика CurseForge"/><TextBlock Text="СЕРВЕР STARLIGHT" Classes="label"/><TextBox Text="{Binding SocialUrl}" Watermark="https://starlight.example.com"/><WrapPanel><Button Content="Привязать API" Command="{Binding LinkService}" Classes="primary" Margin="0,8,8,8"/><Button Content="Открыть в браузере" Command="{Binding OpenService}" Margin="0,8,0,8"/></WrapPanel><TextBlock Text="{Binding ServiceStatus}" TextWrapping="Wrap" Classes="muted"/><WrapPanel><Button Content="Запустить локальный сервис" Command="{Binding StartLocalService}" Margin="0,8,8,8"/><Button Content="Остановить сервис" Command="{Binding StopLocalService}" Margin="0,8,8,8"/><Button Content="Папка сервиса" Command="{Binding OpenServiceFolder}" Margin="0,8,0,8"/></WrapPanel><TextBlock Text="Локальный сервис работает на этом компьютере, пока открыт лаунчер. Для доступа друзей через интернет нужен публичный HTTPS-сервер." TextWrapping="Wrap" Classes="muted" FontSize="12"/><TextBlock Text="UDP-ПОРТ СЕРВЕРА ГОЛОСОВОЙ СВЯЗИ" Classes="label"/><NumericUpDown Value="{Binding NatPort}" Minimum="1024" Maximum="65535" FormatString="0"/><TextBlock Text="КОНТАКТНЫЙ URL ДЛЯ API (PAPER / MODRINTH)" Classes="label"/><TextBox Text="{Binding Contact}" Watermark="https://ваш-сайт.example"/><Button Content="Сохранить настройки" Command="{Binding SaveSettings}" Classes="primary" Margin="0,12,0,0"/></StackPanel></Border>
+          <Border Classes="card"><StackPanel Spacing="12"><TextBlock Text="Файлы приложения" FontSize="20"/><TextBlock Text="{Binding RootPath}" Classes="muted" TextWrapping="Wrap"/><WrapPanel><Button Content="Открыть папку ↗" Command="{Binding OpenData}" Margin="0,0,12,0"/><Button Content="Обновить версии" Command="{Binding RefreshVersions}"/></WrapPanel></StackPanel></Border>
+        </StackPanel>
+        <StackPanel IsVisible="{Binding IsLogs}" Spacing="20"><TextBlock Text="Консоль" Classes="title"/><TextBlock Text="Minecraft, локальный сервер и диагностика запуска." Classes="muted"/><TextBox Text="{Binding Logs}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="NoWrap" Height="560" FontFamily="Cascadia Mono,Consolas,monospace" FontSize="12" Background="#17191D" ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollBarVisibility="Auto"/></StackPanel>
+
+        <StackPanel IsVisible="{Binding IsCatalog}" Spacing="16">
+          <TextBlock Text="Добавить сборку" Classes="title"/>
+          <TextBlock Text="Готовая сборка из каталога, архив с компьютера или чистая игра." Classes="muted"/>
+          <TabControl>
+            <TabItem Header="Каталоги"><StackPanel Spacing="12" Margin="0,16,0,0">
+              <Grid ColumnDefinitions="160,*,Auto"><ComboBox ItemsSource="{Binding PackSources}" SelectedItem="{Binding PackSource}" Margin="0,0,10,0"/><TextBox Grid.Column="1" Text="{Binding PackQuery}" Watermark="Название сборки…" Margin="0,0,10,0"/><Button Grid.Column="2" Content="Поиск" Classes="primary" Command="{Binding FindPacks}"/></Grid>
+              <Grid ColumnDefinitions="*,*,*"><TextBox Text="{Binding PackMinecraft}" Watermark="Любая версия Minecraft" Margin="0,0,10,0"/><ComboBox Grid.Column="1" ItemsSource="{Binding PackLoaders}" SelectedItem="{Binding PackLoader}" Margin="0,0,10,0"/><ComboBox Grid.Column="2" ItemsSource="{Binding PackSorts}" SelectedItem="{Binding PackSort}"/></Grid>
+              <Grid ColumnDefinitions="*,280">
+                <StackPanel Spacing="10" Margin="0,0,16,0"><ListBox ItemsSource="{Binding Packs}" SelectedItem="{Binding SelectedPack}" Height="360"><ListBox.ItemTemplate><DataTemplate><StackPanel Margin="6,9" Spacing="5"><TextBlock Text="{Binding Name}" FontWeight="SemiBold"/><TextBlock Text="{Binding Subtitle}" Classes="muted" FontSize="11"/><TextBlock Text="{Binding Description}" TextWrapping="Wrap" MaxHeight="38" FontSize="12"/></StackPanel></DataTemplate></ListBox.ItemTemplate></ListBox><Grid ColumnDefinitions="Auto,*,Auto"><Button Content="Назад" Command="{Binding PreviousPacks}"/><TextBlock Grid.Column="1" Text="{Binding PackSummary}" HorizontalAlignment="Center" VerticalAlignment="Center" Classes="muted" FontSize="12"/><Button Grid.Column="2" Content="Далее" Command="{Binding NextPacks}"/></Grid></StackPanel>
+                <Border Grid.Column="1" Classes="card"><StackPanel Spacing="12"><TextBlock Text="{Binding SelectedPack.Name}" FontSize="19" TextWrapping="Wrap"/><TextBlock Text="{Binding SelectedPack.Description}" Classes="muted" TextWrapping="Wrap" MaxHeight="110"/><Button Content="Версии сборки" Command="{Binding LoadPackVersions}"/><ComboBox ItemsSource="{Binding PackVersions}" SelectedItem="{Binding SelectedPackVersion}" FontSize="11"/><TextBox Text="{Binding PackName}" Watermark="Название: как у автора"/><TextBlock Text="Память, МБ" Classes="label"/><NumericUpDown Value="{Binding NewMemory}" Minimum="512" Maximum="65536" Increment="512" FormatString="0"/><Button Content="Установить сборку" Classes="primary" Command="{Binding InstallPack}"/><Button Content="Страница проекта" Command="{Binding OpenPackPage}"/></StackPanel></Border>
+              </Grid>
+              <TextBlock Text="Modrinth работает сразу. Для CurseForge привяжите API с ключом владельца в настройках." Classes="muted" TextWrapping="Wrap" FontSize="12"/>
+            </StackPanel></TabItem>
+            <TabItem Header="Чистая игра"><StackPanel Spacing="12" MaxWidth="480" HorizontalAlignment="Left" Margin="0,16"><TextBox Text="{Binding NewName}" Watermark="Название"/><TextBlock Text="Minecraft" Classes="label"/><ComboBox ItemsSource="{Binding Versions}" SelectedItem="{Binding NewVersion}"/><TextBlock Text="Загрузчик" Classes="label"/><ComboBox ItemsSource="{Binding Loaders}" SelectedItem="{Binding NewLoader}"/><TextBox Text="{Binding LoaderVersion}" Watermark="Версия загрузчика: автоматически"/><NumericUpDown Value="{Binding NewMemory}" Minimum="512" Maximum="65536" Increment="512" FormatString="0"/><Button Content="Создать сборку" Classes="primary" Command="{Binding CreateInstance}"/></StackPanel></TabItem>
+            <TabItem Header="Импорт файла"><StackPanel Spacing="16" MaxWidth="570" HorizontalAlignment="Left" Margin="0,20"><TextBlock Text="Modrinth (.mrpack) или CurseForge (.zip)" FontSize="20"/><TextBlock Text="Будут загружены указанные автором моды и скопированы настройки. Каждая сборка получает отдельную папку. Для CurseForge нужен API-ключ на сервисе или в настройках." TextWrapping="Wrap" Classes="muted"/><TextBox Text="{Binding PackName}" Watermark="Название: из архива"/><Button Content="Выбрать архив и импортировать" Classes="primary" Command="{Binding ImportPack}"/></StackPanel></TabItem>
+          </TabControl>
+        </StackPanel>
+        <StackPanel IsVisible="{Binding IsUpdates}" Spacing="20" MaxWidth="740" HorizontalAlignment="Left">
+          <TextBlock Text="Обновления" Classes="title"/><Button Content="Доступно обновление" IsVisible="{Binding UpdateAvailable}" Command="{Binding Navigate}" CommandParameter="8" Classes="primary" FontSize="11"/><TextBlock Text="{Binding AppVersion}" Classes="muted"/>
+          <Border Classes="card"><StackPanel Spacing="16"><TextBlock Text="{Binding UpdateStatus}" FontSize="19" TextWrapping="Wrap"/><TextBlock Text="{Binding ReleaseNotes}" TextWrapping="Wrap"/><WrapPanel><Button Content="Проверить обновления" Command="{Binding CheckUpdates}" Margin="0,0,10,8"/><Button Content="Обновить и перезапустить" Command="{Binding ApplyUpdate}" Classes="primary" IsVisible="{Binding UpdateAvailable}"/></WrapPanel><TextBlock Text="Обновление проверяется по цифровой подписи. Сборки, миры и аккаунты хранятся отдельно и сохраняются." Classes="muted" TextWrapping="Wrap"/></StackPanel></Border>
+          <Border Classes="card"><StackPanel Spacing="12"><TextBlock Text="Источник обновлений" FontSize="19"/><TextBox Text="{Binding UpdateFeedUrl}" Watermark="https://github.com/владелец/репозиторий/releases/latest/download/latest.json"/><CheckBox Content="Проверять при запуске" IsChecked="{Binding CheckUpdatesOnStartup}"/><Button Content="Сохранить" Command="{Binding SaveSettings}"/><TextBlock Text="Официальные выпуски публикуются на GitHub. Для проверки обновлений локальный сервис не нужен." Classes="muted" TextWrapping="Wrap"/></StackPanel></Border>
+        </StackPanel>
+      </Grid>
+    </ScrollViewer>
+    <Border Grid.Column="1" Grid.Row="1" Background="#17191D" BorderBrush="#33363C" BorderThickness="0,1,0,0" Padding="30,14">
+      <Grid ColumnDefinitions="*,Auto" RowDefinitions="*,5"><TextBlock Text="{Binding Status}" FontSize="12" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="0,0,16,8"/><Button Grid.Column="1" Content="Отмена" Command="{Binding Cancel}" IsVisible="{Binding Busy}" Padding="14,6" Margin="0,0,0,8"/><ProgressBar Grid.Row="1" Grid.ColumnSpan="2" Value="{Binding Progress}" Minimum="0" Maximum="100" Height="3" Foreground="#A8BAB2" Background="#33363C"/></Grid>
+    </Border>
+  </Grid>
+</Window>
