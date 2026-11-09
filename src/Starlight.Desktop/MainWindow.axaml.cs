@@ -15,6 +15,15 @@ public sealed partial class MainWindow : Window
         AvaloniaXamlLoader.Load(this); DataContext = model;
         model.CopyText = text => Clipboard?.SetTextAsync(text) ?? Task.CompletedTask;
         model.CloseForUpdate = () => Dispatcher.UIThread.Post(Close);
+        model.ConfirmMultiplayer = async (title, text) => {
+            var dialog = new Window { Title = title, Width = 560, Height = 520, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+            var cancel = new Button { Content = "Отмена" }; var confirm = new Button { Content = "Продолжить" };
+            cancel.Click += (_, _) => dialog.Close(false); confirm.Click += (_, _) => dialog.Close(true);
+            var buttons = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 12, Margin = new Thickness(0,16,0,0), Children = { cancel, confirm } };
+            DockPanel.SetDock(buttons, Dock.Bottom);
+            dialog.Content = new DockPanel { Margin = new Thickness(24), Children = { buttons, new ScrollViewer { Content = new TextBlock { Text = text, TextWrapping = Avalonia.Media.TextWrapping.Wrap } } } };
+            return await dialog.ShowDialog<bool>(this);
+        };
         model.ConfirmServerDelete = async server => {
             var dialog = new Window { Title = "Удалить сервер?", Width = 460, SizeToContent = SizeToContent.Height, CanResize = false, WindowStartupLocation = WindowStartupLocation.CenterOwner };
             var cancel = new Button { Content = "Отмена" };

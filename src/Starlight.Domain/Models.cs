@@ -33,6 +33,7 @@ public sealed record SocialLogin(string Name, string Password);
 public sealed record SocialSession(string Id, string Name, string Token);
 public sealed record Friend(string Id, string Name, string Status, string? Room, bool Pending = false, bool Outgoing = false);
 public sealed record SocialUser(string Id, string Name);
+public sealed record SharedPack(string Name, string Minecraft, ModLoader Loader, string? LoaderVersion, long Bytes, string Sha256, int Files);
 public sealed record ChatMessage(string From, string Name, string Target, string Text, DateTimeOffset At);
 public sealed record Presence(string Status, string? Room = null);
 public sealed record ServiceInfo(string Service, string Version, string? MicrosoftClientId, int NatPort, string UpdateFeedPath, bool CurseForgeAvailable);

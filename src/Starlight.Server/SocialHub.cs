@@ -55,13 +55,23 @@ public sealed class SocialHub(SocialStore store, RelayRooms rooms, NatMediator n
         await Clients.Groups(members.ToArray()).SendAsync("GroupCreated", id); return id;
     }
     public string HostRoom() => rooms.Create(Id);
+    public void SetRoomPack(string room, SharedPack pack) => rooms.SetPack(room, Id, pack);
+    public SharedPack? GetRoomPack(string room) => rooms.GetPack(room, Id, store);
+    public string[] ExchangeCandidates(string room, string stream, string[] candidates) => rooms.ExchangeCandidates(room, stream, Id, candidates, store);
+    public async Task OpenPackTunnel(string room, string stream, string secret)
+    {
+        if (rooms.GetPack(room, Id, store) == null) throw new HubException("Сборка не опубликована.");
+        await OpenTunnelCore(room, stream, secret, "OpenPackTunnel");
+    }
     public void CloseRoom(string room) { if (!rooms.IsOwner(room, Id)) throw new HubException("Нет доступа."); rooms.RemoveOwner(Id); }
     public async Task OpenTunnel(string room, string stream, string secret)
+        => await OpenTunnelCore(room, stream, secret, "OpenTunnel");
+    private async Task OpenTunnelCore(string room, string stream, string secret, string method)
     {
         if (!System.Text.RegularExpressions.Regex.IsMatch(secret, "^[A-F0-9]{64}$")) throw new HubException("Неверный ключ соединения.");
         var owner = rooms.Authorize(room, Id, store);
         nat.Allow(Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Convert.FromHexString(secret))));
-        rooms.Reserve(room, stream, Id); await Clients.Group(owner).SendAsync("OpenTunnel", room, stream, secret);
+        rooms.Reserve(room, stream, Id); await Clients.Group(owner).SendAsync(method, room, stream, secret);
     }
     public async Task VoiceOffer(string target, string endpoint, string secret)
     {

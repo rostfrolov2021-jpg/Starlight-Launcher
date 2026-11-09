@@ -21,10 +21,20 @@ public sealed class SocialClient(HttpClient http) : IAsyncDisposable
     public event Action<string>? Notice;
     private CancellationTokenSource tunnels = new();
     private int hostPort;
+    private int hostPackPort;
     private string? hostRoom;
     private TcpListener? listener;
     private readonly System.Collections.Concurrent.ConcurrentDictionary<Guid, Task> connections = new();
     public int NatPort { get; set; } = 5089;
+    public bool EnablePeerDiscovery { get; set; } = true;
+    private Func<int, IPEndPoint?, CancellationToken, Task<IPEndPoint[]>>? CandidateExchange(string room, string stream)
+        => !EnablePeerDiscovery ? null : async (port, mapped, ct) => {
+            var candidates = new List<string>(); if (mapped != null) candidates.Add(mapped.ToString());
+            if (BaseUri!.IsLoopback) candidates.Add(new IPEndPoint(IPAddress.Loopback, port).ToString());
+            else foreach (var address in System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces().Where(n => n.OperationalStatus == System.Net.NetworkInformation.OperationalStatus.Up).SelectMany(n => n.GetIPProperties().UnicastAddresses).Select(a => a.Address).Where(a => a.AddressFamily == AddressFamily.InterNetwork && !IPAddress.IsLoopback(a)).Take(3)) candidates.Add(new IPEndPoint(address, port).ToString());
+            var remote = await RequireHub().InvokeAsync<string[]>("ExchangeCandidates", room, stream, candidates.Distinct().Take(4).ToArray(), ct);
+            return remote.Take(4).Select(c => IPEndPoint.TryParse(c, out var endpoint) ? endpoint : null).Where(e => e is { Port: >= 1024 } && e.Address.AddressFamily == AddressFamily.InterNetwork && e.Address.GetAddressBytes()[0] is > 0 and < 224).Cast<IPEndPoint>().ToArray();
+        };
     public bool Connected => Hub?.State == HubConnectionState.Connected;
     public async Task ConnectAsync(string url, string name, string password, bool register, CancellationToken ct)
     {
@@ -52,7 +62,10 @@ public sealed class SocialClient(HttpClient http) : IAsyncDisposable
         Hub.On<string>("GroupCreated", id => GroupCreated?.Invoke(id));
         Hub.On<string, string, string>("VoiceOffer", (id, endpoint, secret) => VoiceOffer?.Invoke(id, endpoint, secret));
         Hub.On<string, string, string>("OpenTunnel", (room, stream, secret) => {
-            if (room == hostRoom) Track(HandleHostAsync(room, stream, secret, tunnels.Token));
+            if (room == hostRoom) Track(HandleHostAsync(room, stream, secret, hostPort, tunnels.Token));
+        });
+        Hub.On<string, string, string>("OpenPackTunnel", (room, stream, secret) => {
+            if (room == hostRoom && hostPackPort > 0) Track(HandleHostAsync(room, stream, secret, hostPackPort, tunnels.Token));
         });
         Hub.Reconnecting += _ => { Notice?.Invoke("Связь прервана. Переподключение…"); return Task.CompletedTask; };
         Hub.Closed += _ => { Notice?.Invoke("Связь с друзьями потеряна. Нажмите «Войти», чтобы подключиться снова."); FriendsChanged?.Invoke(); return Task.CompletedTask; };
@@ -99,21 +112,23 @@ public sealed class SocialClient(HttpClient http) : IAsyncDisposable
         var id = Guid.NewGuid(); connections[id] = task;
         _ = task.ContinueWith(_ => connections.TryRemove(id, out var ignored), TaskScheduler.Default);
     }
-    private async Task HandleHostAsync(string room, string stream, string secret, CancellationToken ct)
+    private async Task HandleHostAsync(string room, string stream, string secret, int targetPort, CancellationToken ct)
     {
         try
         {
-            using var tcp = new TcpClient(); await tcp.ConnectAsync(IPAddress.Loopback, hostPort, ct);
-            if (await PeerTunnel.TryBridgeAsync(tcp.GetStream(), BaseUri!.Host, NatPort, secret, false, ct, () => Notice?.Invoke("Маршрут: P2P"))) return;
+            using var tcp = new TcpClient(); await tcp.ConnectAsync(IPAddress.Loopback, targetPort, ct);
+            if (await PeerTunnel.TryBridgeAsync(tcp.GetStream(), BaseUri!.Host, NatPort, secret, false, ct, () => Notice?.Invoke("Маршрут: P2P"), CandidateExchange(room, stream))) return;
             Notice?.Invoke("Маршрут: relay");
             using var socket = await SocketAsync(room, stream, "host", ct); await BridgeAsync(tcp.GetStream(), socket, ct);
         }
         catch (Exception e) when (e is not OutOfMemoryException) { Notice?.Invoke("Туннель закрыт: " + e.GetType().Name); }
     }
     public HubConnection RequireHub() => Connected ? Hub! : throw new InvalidOperationException("Подключитесь к серверу Starlight.");
-    public async Task<string> HostAsync(int port, string serverName, CancellationToken ct)
+    public async Task<string> HostAsync(int port, string serverName, CancellationToken ct, PublishedFriendPack? pack = null)
     {
-        hostPort = port; hostRoom = await RequireHub().InvokeAsync<string>("HostRoom", ct);
+        await StopHostingAsync(ct);
+        hostPort = port; hostPackPort = pack?.Port ?? 0; hostRoom = await RequireHub().InvokeAsync<string>("HostRoom", ct);
+        if (pack != null) await RequireHub().InvokeAsync("SetRoomPack", hostRoom, pack.Description, ct);
         await RequireHub().InvokeAsync("SetPresence", new Presence("Хостит: " + serverName, hostRoom), ct); return hostRoom;
     }
     public async Task StopHostingAsync(CancellationToken ct)
@@ -121,29 +136,30 @@ public sealed class SocialClient(HttpClient http) : IAsyncDisposable
         if (hostRoom != null && Connected) { await Hub!.InvokeAsync("CloseRoom", hostRoom, ct); await Hub!.InvokeAsync("SetPresence", new Presence("В сети"), ct); }
         hostRoom = null; await StopTunnelsAsync();
     }
-    public async Task<int> JoinAsync(string room, CancellationToken ct)
+    public Task<SharedPack?> GetRoomPackAsync(string room, CancellationToken ct) => RequireHub().InvokeAsync<SharedPack?>("GetRoomPack", room, ct);
+    public async Task<int> JoinAsync(string room, CancellationToken ct, bool pack = false)
     {
         await StopTunnelsAsync(); listener = new TcpListener(IPAddress.Loopback, 0); listener.Start();
-        var port = ((IPEndPoint)listener.LocalEndpoint).Port; _ = AcceptLoopAsync(room, listener, tunnels.Token); ct.ThrowIfCancellationRequested(); return port;
+        var port = ((IPEndPoint)listener.LocalEndpoint).Port; _ = AcceptLoopAsync(room, listener, pack, tunnels.Token); ct.ThrowIfCancellationRequested(); return port;
     }
-    private async Task AcceptLoopAsync(string room, TcpListener server, CancellationToken ct)
+    private async Task AcceptLoopAsync(string room, TcpListener server, bool pack, CancellationToken ct)
     {
         try
         {
             while (!ct.IsCancellationRequested)
             {
-                var tcp = await server.AcceptTcpClientAsync(ct); Track(HandleGuestAsync(room, tcp, ct));
+                var tcp = await server.AcceptTcpClientAsync(ct); Track(HandleGuestAsync(room, tcp, pack, ct));
             }
         }
         catch (Exception e) when (e is OperationCanceledException or SocketException) { }
     }
-    private async Task HandleGuestAsync(string room, TcpClient tcp, CancellationToken ct)
+    private async Task HandleGuestAsync(string room, TcpClient tcp, bool pack, CancellationToken ct)
     {
         using (tcp)
         try
         {
-            var stream = Guid.NewGuid().ToString("N"); var secret = VoiceService.NewSecret(); await RequireHub().InvokeAsync("OpenTunnel", room, stream, secret, ct);
-            if (await PeerTunnel.TryBridgeAsync(tcp.GetStream(), BaseUri!.Host, NatPort, secret, true, ct, () => Notice?.Invoke("Маршрут: P2P"))) return;
+            var stream = Guid.NewGuid().ToString("N"); var secret = VoiceService.NewSecret(); await RequireHub().InvokeAsync(pack ? "OpenPackTunnel" : "OpenTunnel", room, stream, secret, ct);
+            if (await PeerTunnel.TryBridgeAsync(tcp.GetStream(), BaseUri!.Host, NatPort, secret, true, ct, () => Notice?.Invoke("Маршрут: P2P"), CandidateExchange(room, stream))) return;
             Notice?.Invoke("Маршрут: relay");
             using var socket = await SocketAsync(room, stream, "guest", ct); await BridgeAsync(tcp.GetStream(), socket, ct);
         }

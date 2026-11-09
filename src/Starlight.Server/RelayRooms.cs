@@ -7,19 +7,27 @@ namespace Starlight.Server;
 
 public sealed class RelayRooms
 {
-    private sealed record Room(string Owner, DateTimeOffset Created);
+    private sealed record Room(string Owner, DateTimeOffset Created, Starlight.Domain.SharedPack? Pack = null);
     private sealed class Pair(string guest)
     {
         public string Guest { get; } = guest;
         public TaskCompletionSource<WebSocket> Host { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource Done { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public int Joined;
+        public string[]? HostCandidates, GuestCandidates;
         public DateTimeOffset Created { get; } = DateTimeOffset.UtcNow;
     }
     private readonly ConcurrentDictionary<string, Room> rooms = new();
     private readonly ConcurrentDictionary<string, Pair> pairs = new();
     public string Create(string owner) { RemoveOwner(owner); var id = Guid.NewGuid().ToString("N"); rooms[id] = new(owner, DateTimeOffset.UtcNow); return id; }
     public bool IsOwner(string room, string owner) => rooms.TryGetValue(room, out var r) && r.Owner == owner;
+    public void SetPack(string room, string owner, Starlight.Domain.SharedPack pack)
+    {
+        if (!rooms.TryGetValue(room, out var r) || r.Owner != owner) throw new HubException("Нет доступа.");
+        if (string.IsNullOrWhiteSpace(pack.Name) || pack.Name.Length > 80 || string.IsNullOrWhiteSpace(pack.Minecraft) || pack.Minecraft.Length > 64 || !Enum.IsDefined(pack.Loader) || pack.LoaderVersion?.Length > 100 || pack.Bytes is < 1 or > 4294967296L || pack.Files is < 0 or > 10000 || !System.Text.RegularExpressions.Regex.IsMatch(pack.Sha256 ?? "", "^[a-fA-F0-9]{64}$")) throw new HubException("Некорректная сборка.");
+        if (!rooms.TryUpdate(room, r with { Pack = pack }, r)) throw new HubException("Комната закрыта.");
+    }
+    public Starlight.Domain.SharedPack? GetPack(string room, string guest, SocialStore store) { Authorize(room, guest, store); return rooms[room].Pack; }
     public void RemoveOwner(string owner)
     {
         foreach (var room in rooms.Where(x => x.Value.Owner == owner))
@@ -37,6 +45,19 @@ public sealed class RelayRooms
     {
         foreach (var stale in pairs.Where(x => x.Value.Created < DateTimeOffset.UtcNow.AddSeconds(-45) && !x.Value.Host.Task.IsCompleted)) pairs.TryRemove(stale.Key, out _);
         if (!Guid.TryParseExact(stream, "N", out _) || pairs.Count(x => x.Value.Guest == guest) >= 16 || !pairs.TryAdd(room + ":" + stream, new Pair(guest))) throw new HubException("Лимит соединений.");
+    }
+    public string[] ExchangeCandidates(string room, string stream, string user, string[] candidates, SocialStore store)
+    {
+        if (!pairs.TryGetValue(room + ":" + stream, out var pair) || pair.Created < DateTimeOffset.UtcNow.AddSeconds(-30)) throw new HubException("Соединение устарело.");
+        var host = IsOwner(room, user);
+        if (!host) { if (pair.Guest != user) throw new HubException("Нет доступа."); Authorize(room, user, store); }
+        if (candidates.Length > 4 || candidates.Any(c => c.Length > 64 || !System.Net.IPEndPoint.TryParse(c, out var ep) || ep.Port < 1024 || ep.Address.AddressFamily != System.Net.Sockets.AddressFamily.InterNetwork || ep.Address.GetAddressBytes()[0] is 0 or >= 224)) throw new HubException("Неверный адрес соединения.");
+        lock (pair)
+        {
+            // Freeze candidates after the first exchange: a stream cannot be used as a port scanner.
+            if (host) { pair.HostCandidates ??= candidates; return pair.GuestCandidates ?? []; }
+            pair.GuestCandidates ??= candidates; return pair.HostCandidates ?? [];
+        }
     }
     public static async Task HandleAsync(HttpContext context)
     {
