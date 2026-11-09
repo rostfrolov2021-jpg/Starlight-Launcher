@@ -1,0 +1,148 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="using:Starlight.Mobile"
+             x:Class="Starlight.Mobile.MainView"
+             x:DataType="local:MobileViewModel">
+  <!-- Adaptive shell: bottom navigation on phones (IsCompact), side rail on tablets / landscape (IsWide). -->
+  <Grid ColumnDefinitions="Auto,*" RowDefinitions="*,Auto,Auto" Background="#12141C">
+
+    <!-- Side rail (tablet) -->
+    <Border Grid.RowSpan="3" Background="#161A24" Width="96" IsVisible="{Binding IsWide}">
+      <StackPanel Spacing="8" Margin="8,24,8,8">
+        <Button Classes="nav" Command="{Binding Navigate}" CommandParameter="0" HorizontalAlignment="Stretch"><StackPanel><TextBlock Text="✦" FontSize="22" HorizontalAlignment="Center"/><TextBlock Text="Сборки" FontSize="12" HorizontalAlignment="Center"/></StackPanel></Button>
+        <Button Classes="nav" Command="{Binding Navigate}" CommandParameter="1" HorizontalAlignment="Stretch"><StackPanel><TextBlock Text="⬇" FontSize="22" HorizontalAlignment="Center"/><TextBlock Text="Моды" FontSize="12" HorizontalAlignment="Center"/></StackPanel></Button>
+        <Button Classes="nav" Command="{Binding Navigate}" CommandParameter="2" HorizontalAlignment="Stretch"><StackPanel><TextBlock Text="⚙" FontSize="22" HorizontalAlignment="Center"/><TextBlock Text="Настройки" FontSize="12" HorizontalAlignment="Center"/></StackPanel></Button>
+      </StackPanel>
+    </Border>
+
+    <!-- Pages -->
+    <Grid Grid.Column="1" Grid.Row="0">
+
+      <!-- 0: instances -->
+      <ScrollViewer IsVisible="{Binding IsInstancesPage}">
+        <StackPanel Margin="16,24,16,16" Spacing="12" MaxWidth="900">
+          <TextBlock Classes="h1" Text="Starlight"/>
+          <TextBlock Classes="muted" Text="{Binding DeviceLine}"/>
+          <Border Classes="card" IsVisible="{Binding HasLaunchBlocker}" Background="#3A2A12">
+            <TextBlock Text="{Binding LaunchBlocker}" TextWrapping="Wrap"/>
+          </Border>
+          <Border Classes="card">
+            <StackPanel Spacing="10">
+              <TextBlock Text="Мои сборки" FontWeight="SemiBold"/>
+              <ListBox ItemsSource="{Binding Instances}" SelectedItem="{Binding Selected}" MaxHeight="320">
+                <ListBox.ItemTemplate>
+                  <DataTemplate x:DataType="local:InstanceRow">
+                    <StackPanel>
+                      <TextBlock Text="{Binding Title}" FontWeight="SemiBold"/>
+                      <TextBlock Classes="muted" Text="{Binding Subtitle}"/>
+                    </StackPanel>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+              <TextBox Text="{Binding Nickname}" Watermark="Ник (офлайн-профиль)"/>
+              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                <Button Classes="primary" Command="{Binding Play}" IsEnabled="{Binding HasSelection}" HorizontalAlignment="Stretch" Content="▶  Играть"/>
+                <Button Grid.Column="1" Command="{Binding Stop}" Content="■"/>
+              </Grid>
+            </StackPanel>
+          </Border>
+          <Expander Header="Новая сборка" Padding="0">
+            <Border Classes="card"><StackPanel Spacing="10">
+              <TextBox Text="{Binding NewName}" Watermark="Название"/>
+              <ComboBox ItemsSource="{Binding Versions}" SelectedItem="{Binding NewVersion}" HorizontalAlignment="Stretch" PlaceholderText="Версия Minecraft"/>
+              <ComboBox ItemsSource="{Binding LoaderOptions}" SelectedItem="{Binding NewLoader}" HorizontalAlignment="Stretch"/>
+              <Button Classes="primary" Command="{Binding Create}" HorizontalAlignment="Stretch" Content="Создать"/>
+              <Button Command="{Binding ImportPack}" HorizontalAlignment="Stretch" Content="Импорт сборки (.mrpack / CurseForge .zip)"/>
+            </StackPanel></Border>
+          </Expander>
+          <Expander Header="Журнал игры" Padding="0">
+            <Border Classes="card"><TextBox Text="{Binding LogText}" IsReadOnly="True" AcceptsReturn="True" MinHeight="160" MaxHeight="320" FontFamily="monospace" FontSize="11"/></Border>
+          </Expander>
+        </StackPanel>
+      </ScrollViewer>
+
+      <!-- 1: mods / resource packs / shaders -->
+      <ScrollViewer IsVisible="{Binding IsModsPage}">
+        <StackPanel Margin="16,24,16,16" Spacing="12" MaxWidth="900">
+          <TextBlock Classes="h1" Text="Моды и ресурсы"/>
+          <TextBlock Classes="muted" Text="Источник: Modrinth. Версия и загрузчик берутся из выбранной сборки."/>
+          <ComboBox ItemsSource="{Binding ResourceTabs}" SelectedIndex="{Binding ResourceTab}" HorizontalAlignment="Stretch"/>
+          <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+            <TextBox Text="{Binding Query}" Watermark="Поиск"/>
+            <Button Grid.Column="1" Classes="primary" Command="{Binding Search}" Content="Найти"/>
+          </Grid>
+          <ListBox ItemsSource="{Binding Results}" SelectedItem="{Binding SelectedResult}" MaxHeight="320">
+            <ListBox.ItemTemplate>
+              <DataTemplate x:DataType="local:ResultRow">
+                <StackPanel>
+                  <TextBlock Text="{Binding Title}" FontWeight="SemiBold"/>
+                  <TextBlock Classes="muted" Text="{Binding Subtitle}" TextWrapping="Wrap" MaxLines="2"/>
+                </StackPanel>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+          <Button Classes="primary" Command="{Binding Install}" HorizontalAlignment="Stretch" Content="Установить выбранное"/>
+          <TextBlock Text="Установлено" FontWeight="SemiBold" Margin="0,12,0,0"/>
+          <ListBox ItemsSource="{Binding Local}" SelectedItem="{Binding SelectedLocal}" MaxHeight="240">
+            <ListBox.ItemTemplate>
+              <DataTemplate x:DataType="local:LocalRow"><TextBlock Text="{Binding Label}" TextWrapping="Wrap"/></DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+          <Button Command="{Binding RemoveLocal}" HorizontalAlignment="Stretch" Content="Удалить выбранное"/>
+        </StackPanel>
+      </ScrollViewer>
+
+      <!-- 2: settings -->
+      <ScrollViewer IsVisible="{Binding IsSettingsPage}">
+        <StackPanel Margin="16,24,16,16" Spacing="12" MaxWidth="900">
+          <TextBlock Classes="h1" Text="Настройки сборки"/>
+          <TextBlock Classes="muted" Text="Применяются к выбранной сборке"/>
+          <Border Classes="card"><StackPanel Spacing="10">
+            <TextBlock Text="Оперативная память (куча JVM)" FontWeight="SemiBold"/>
+            <Slider Minimum="512" Maximum="{Binding MaxMemoryMb}" TickFrequency="256" IsSnapToTickEnabled="True" Value="{Binding Memory}"/>
+            <TextBlock Text="{Binding MemoryText}"/>
+            <TextBlock Text="{Binding MemoryWarning}" IsVisible="{Binding HasMemoryWarning}" Foreground="#FFB454" TextWrapping="Wrap"/>
+            <TextBlock Text="Java" FontWeight="SemiBold" Margin="0,8,0,0"/>
+            <ComboBox ItemsSource="{Binding JavaOptions}" SelectedItem="{Binding JavaChoice}" HorizontalAlignment="Stretch"/>
+            <TextBlock Text="Аргументы JVM" FontWeight="SemiBold" Margin="0,8,0,0"/>
+            <TextBox Text="{Binding JvmArgs}" Watermark="-XX:+UseG1GC -Dfoo=bar" AcceptsReturn="False"/>
+            <Button Classes="primary" Command="{Binding SaveSettings}" IsEnabled="{Binding HasSelection}" HorizontalAlignment="Stretch" Content="Сохранить"/>
+          </StackPanel></Border>
+          <Border Classes="card"><StackPanel Spacing="10">
+            <TextBlock Text="Мониторинг" FontWeight="SemiBold"/>
+            <ToggleSwitch IsChecked="{Binding ShowOverlay}" OnContent="Оверлей включён" OffContent="Оверлей выключен"/>
+          </StackPanel></Border>
+          <Border Classes="card"><StackPanel Spacing="10">
+            <TextBlock Text="Аккаунт Microsoft" FontWeight="SemiBold"/>
+            <TextBox Text="{Binding MicrosoftClientId}" Watermark="Azure Client ID"/>
+            <Button Command="{Binding MicrosoftLogin}" HorizontalAlignment="Stretch" Content="Войти по коду"/>
+            <TextBlock Classes="muted" TextWrapping="Wrap" Text="Вход действует до закрытия приложения. Без входа используется офлайн-профиль."/>
+          </StackPanel></Border>
+        </StackPanel>
+      </ScrollViewer>
+
+      <!-- Performance overlay -->
+      <Border HorizontalAlignment="Right" VerticalAlignment="Top" Margin="8" Padding="10,6" CornerRadius="10"
+              Background="#CC000000" IsHitTestVisible="False" IsVisible="{Binding ShowOverlay}">
+        <TextBlock Text="{Binding PerfText}" FontFamily="monospace" FontSize="11" Foreground="#9CFF9C"/>
+      </Border>
+    </Grid>
+
+    <!-- Status -->
+    <Border Grid.Column="1" Grid.Row="1" Background="#1B1F2A" Padding="16,8">
+      <StackPanel Spacing="4">
+        <ProgressBar Value="{Binding Percent}" Maximum="100" IsVisible="{Binding Busy}"/>
+        <TextBlock Text="{Binding Status}" TextWrapping="Wrap" FontSize="13"/>
+      </StackPanel>
+    </Border>
+
+    <!-- Bottom navigation (phone) -->
+    <Border Grid.Column="1" Grid.Row="2" Background="#161A24" IsVisible="{Binding IsCompact}">
+      <Grid ColumnDefinitions="*,*,*" Margin="0,4,0,4">
+        <Button Classes="nav" Command="{Binding Navigate}" CommandParameter="0" HorizontalAlignment="Stretch"><StackPanel><TextBlock Text="✦" FontSize="20" HorizontalAlignment="Center"/><TextBlock Text="Сборки" FontSize="11" HorizontalAlignment="Center"/></StackPanel></Button>
+        <Button Grid.Column="1" Classes="nav" Command="{Binding Navigate}" CommandParameter="1" HorizontalAlignment="Stretch"><StackPanel><TextBlock Text="⬇" FontSize="20" HorizontalAlignment="Center"/><TextBlock Text="Моды" FontSize="11" HorizontalAlignment="Center"/></StackPanel></Button>
+        <Button Grid.Column="2" Classes="nav" Command="{Binding Navigate}" CommandParameter="2" HorizontalAlignment="Stretch"><StackPanel><TextBlock Text="⚙" FontSize="20" HorizontalAlignment="Center"/><TextBlock Text="Настройки" FontSize="11" HorizontalAlignment="Center"/></StackPanel></Button>
+      </Grid>
+    </Border>
+  </Grid>
+</UserControl>

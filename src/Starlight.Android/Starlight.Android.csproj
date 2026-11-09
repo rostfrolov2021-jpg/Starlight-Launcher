@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0-android</TargetFramework>
+    <SupportedOSPlatformVersion>26</SupportedOSPlatformVersion>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Starlight.Droid</RootNamespace>
+    <AssemblyName>Starlight.Android</AssemblyName>
+    <ApplicationId>company.starlight.launcher</ApplicationId>
+    <ApplicationVersion>1</ApplicationVersion>
+    <ApplicationDisplayVersion>$(Version)</ApplicationDisplayVersion>
+    <!-- arm64 only: the Java runtime and the native launcher library are built for arm64-v8a. -->
+    <RuntimeIdentifier>android-arm64</RuntimeIdentifier>
+    <AndroidPackageFormat>apk</AndroidPackageFormat>
+    <!-- JRE archives are already compressed; storing them uncompressed makes first-run extraction much cheaper. -->
+    <AndroidStoreUncompressedFileExtensions>.zip</AndroidStoreUncompressedFileExtensions>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <PublishTrimmed>false</PublishTrimmed>
+    <EmbedAssembliesIntoApk>true</EmbedAssembliesIntoApk>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Starlight.Mobile/Starlight.Mobile.csproj" />
+    <PackageReference Include="Avalonia.Android" Version="11.3.8" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Put JRE zips here (jre-8-arm64.zip, jre-17-arm64.zip, jre-21-arm64.zip) — see docs/MOBILE_PORT.md -->
+    <AndroidAsset Include="Assets/jre/*.zip" Condition="Exists('Assets/jre')" />
+    <!-- Native launcher shim (libstarlight_jvm.so) built from native/android; copy to Native/arm64-v8a/ -->
+    <AndroidNativeLibrary Include="Native/arm64-v8a/*.so" Condition="Exists('Native/arm64-v8a')" Abi="arm64-v8a" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,35 @@
+name: Mobile build
+on:
+  workflow_dispatch:
+  push:
+    paths: ['src/Starlight.Mobile/**', 'src/Starlight.Android/**', 'src/Starlight.iOS/**', 'src/Starlight.Platform/**', 'src/Starlight.Infrastructure/**', 'src/Starlight.Domain/**', '.github/workflows/mobile.yml']
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: 8.0.x }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 17 }
+      - run: dotnet workload install android
+      - name: Build APK
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEYSTORE_PASS: ${{ secrets.ANDROID_KEYSTORE_PASS }}
+          KEY_PASS: ${{ secrets.ANDROID_KEY_PASS }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"; export KEYSTORE="$RUNNER_TEMP/release.jks"; fi
+          ./scripts/build-android.sh
+      - uses: actions/upload-artifact@v4
+        with: { name: starlight-android-apk, path: artifacts/android/*.apk }
+  ios:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: 8.0.x }
+      - run: dotnet workload install ios
+      # Unsigned simulator build: proves the iOS head compiles. A signed .ipa needs your Apple certificate + provisioning profile as secrets.
+      - run: ./scripts/build-ios.sh sim

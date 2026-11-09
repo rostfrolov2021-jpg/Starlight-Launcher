@@ -3,7 +3,12 @@ namespace Starlight.Domain;
 public enum ModLoader { Vanilla, Fabric, Forge, NeoForge }
 public enum ServerKind { Vanilla, Fabric, Paper, Spigot, Forge, Nukkit, Arclight, Youer }
 public sealed record Instance(Guid Id, string Name, string MinecraftVersion, ModLoader Loader,
-    string? LoaderVersion = null, int MemoryMb = 4096, string Icon = "✦", string? InstalledVersion = null);
+    string? LoaderVersion = null, int MemoryMb = 4096, string Icon = "✦", string? InstalledVersion = null,
+    string? JvmArgs = null, int? JavaMajor = null);
+/// <summary>Everything a platform runtime needs to start the game: java binary/home, full argument list, working dir.</summary>
+public sealed record LaunchPlan(string JavaPath, IReadOnlyList<string> Arguments, string WorkingDirectory);
+/// <summary>Parallelism of the game file installer. Phones need far lower values than desktops to avoid OOM.</summary>
+public sealed record InstallTuning(int Checkers, int Downloaders, int Capacity);
 public sealed record Account(string Name, string Uuid, bool IsMicrosoft, string? AccessToken = null,
     string? RefreshToken = null, DateTimeOffset? ExpiresAt = null, string? SkinUrl = null, string? Xuid = null)
 {

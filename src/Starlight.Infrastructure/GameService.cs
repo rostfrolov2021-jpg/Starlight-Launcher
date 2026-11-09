@@ -11,8 +11,10 @@ using Starlight.Domain;
 
 namespace Starlight.Infrastructure;
 
-public sealed class GameService(PathService paths, Downloads downloads, JavaService java, InstanceService instances)
+public sealed class GameService(PathService paths, Downloads downloads, IJavaProvider java, InstanceService instances)
 {
+    /// <summary>Installer parallelism. Desktop default; mobile heads lower it to fit the device RAM.</summary>
+    public InstallTuning Tuning { get; init; } = new(8, 6, 256);
     public static MSession CreateSession(Account account)
     {
         var session = account.IsMicrosoft
@@ -47,13 +49,26 @@ public sealed class GameService(PathService paths, Downloads downloads, JavaServ
     }
     public async Task<Process> LaunchAsync(Instance instance, Account account, IProgress<TransferProgress> progress, Action<string> log, CancellationToken ct, int? serverPort = null)
     {
-        var javaPath = await java.EnsureAsync(await JavaMajorAsync(instance.MinecraftVersion, ct), progress, ct);
+        var process = await BuildProcessAsync(instance, account, progress, ct, serverPort);
+        ProcessLog.Start(process, log);
+        return process;
+    }
+    /// <summary>Installs everything and returns the exact command line without starting a process (mobile runtimes launch the JVM in-process).</summary>
+    public async Task<LaunchPlan> PrepareLaunchAsync(Instance instance, Account account, IProgress<TransferProgress> progress, CancellationToken ct, int? serverPort = null)
+    {
+        using var process = await BuildProcessAsync(instance, account, progress, ct, serverPort);
+        var info = process.StartInfo;
+        return new LaunchPlan(info.FileName, info.ArgumentList.ToArray(), info.WorkingDirectory);
+    }
+    private async Task<Process> BuildProcessAsync(Instance instance, Account account, IProgress<TransferProgress> progress, CancellationToken ct, int? serverPort)
+    {
+        var javaPath = await java.EnsureAsync(instance.JavaMajor ?? await JavaMajorAsync(instance.MinecraftVersion, ct), progress, ct);
         var path = new MinecraftPath(paths.Game(instance.Id)) { Runtime = paths.Runtimes };
         var parameters = MinecraftLauncherParameters.CreateDefault(path);
         var extractors = DefaultFileExtractors.CreateDefault(parameters.HttpClient, parameters.RulesEvaluator!, parameters.JavaPathResolver!);
         extractors.Java = null;
         parameters.FileExtractors = extractors.ToExtractorCollection();
-        parameters.GameInstaller = new ParallelGameInstaller(8, 6, 256, parameters.HttpClient) { CheckFileChecksum = true, CheckFileSize = true };
+        parameters.GameInstaller = new ParallelGameInstaller(Tuning.Checkers, Tuning.Downloaders, Tuning.Capacity, parameters.HttpClient) { CheckFileChecksum = true, CheckFileSize = true };
         var launcher = new MinecraftLauncher(parameters);
         launcher.FileProgressChanged += (_, e) => progress.Report(new(e.Name ?? "Minecraft", e.TotalTasks == 0 ? 0 : 100d * e.ProgressedTasks / e.TotalTasks));
         var version = instance.InstalledVersion;
@@ -66,9 +81,9 @@ public sealed class GameService(PathService paths, Downloads downloads, JavaServ
         var session = CreateSession(account);
         var option = new MLaunchOption { Session = session, JavaPath = javaPath, MaximumRamMb = instance.MemoryMb, MinimumRamMb = Math.Min(512, instance.MemoryMb), GameLauncherName = "Starlight", GameLauncherVersion = "1.0.0" };
         if (serverPort.HasValue) { option.ServerIp = "127.0.0.1"; option.ServerPort = serverPort.Value; }
+        if (!string.IsNullOrWhiteSpace(instance.JvmArgs)) option.ExtraJvmArguments = [MArgument.FromCommandLine(instance.JvmArgs.Trim())];
         var process = await launcher.BuildProcessAsync(version, option, ct);
         process.StartInfo.WorkingDirectory = paths.Game(instance.Id);
-        ProcessLog.Start(process, log);
         return process;
     }
     private async Task<string> InstallLoaderAsync(Instance instance, MinecraftLauncher launcher, string javaPath, CancellationToken ct)

@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0-ios</TargetFramework>
+    <SupportedOSPlatformVersion>15.0</SupportedOSPlatformVersion>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Starlight.iOS</RootNamespace>
+    <AssemblyName>Starlight.iOS</AssemblyName>
+    <ApplicationId>company.starlight.launcher</ApplicationId>
+    <ApplicationDisplayVersion>$(Version)</ApplicationDisplayVersion>
+    <ApplicationVersion>1</ApplicationVersion>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!-- Start with linking off; turn on (and add [DynamicDependency]/JsonSerializerContext for the models) once the app runs on a device. -->
+    <MtouchLink>None</MtouchLink>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Starlight.Mobile/Starlight.Mobile.csproj" />
+    <PackageReference Include="Avalonia.iOS" Version="11.3.8" />
+  </ItemGroup>
+</Project>
