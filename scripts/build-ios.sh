@@ -6,6 +6,14 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 [[ "$(uname)" == "Darwin" ]] || { echo "Сборка iOS возможна только на macOS (Xcode)."; exit 1; }
 command -v dotnet >/dev/null || { echo "Нужен .NET 8 SDK"; exit 1; }
+
+# Mobile heads target net8.0-android/ios. SDK 10 rejects them (NETSDK1202 / Avalonia 11.3 package mismatch), so pin SDK 8 for this build only.
+if [[ ! -f global.json && "$(dotnet --version | cut -d. -f1)" != "8" ]]; then
+  SDK8="$(dotnet --list-sdks | grep '^8\.' | tail -1 | cut -d' ' -f1 || true)"
+  [[ -n "$SDK8" ]] || { echo "Нужен .NET 8 SDK: мобильные проекты не собираются на SDK 10."; exit 1; }
+  printf '{"sdk":{"version":"%s","rollForward":"disable"}}\n' "$SDK8" > global.json
+  trap 'rm -f global.json' EXIT
+fi
 dotnet workload list | grep -q '^ios' || dotnet workload install ios
 
 PROJECT=src/Starlight.iOS/Starlight.iOS.csproj

@@ -74,6 +74,8 @@ KEYSTORE=release.jks KEYSTORE_PASS=… KEY_ALIAS=starlight KEY_PASS=… ./script
 CODESIGN_KEY="Apple Distribution: …" PROVISION="Starlight AdHoc" ./scripts/build-ios.sh device   # .ipa
 ```
 
+Для мобильных проектов нужен **.NET SDK 8** (на SDK 10 они не собираются: `net8.0-android` помечен устаревшим, `Avalonia.Android 11.3.8` с ним несовместим); скрипты сами закрепляют SDK 8 через временный `global.json`.
+
 Мобильные проекты намеренно **не добавлены в `Starlight.sln`**: иначе CI на Windows/Linux потребует мобильные workload’ы. Собираются по `.csproj` и workflow `mobile.yml`.
 
 ## 6. Порядок дальнейших работ
