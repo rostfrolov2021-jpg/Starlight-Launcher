@@ -33,6 +33,11 @@ public sealed partial class MainViewModel
     }
     private async Task JoinFriendAsync(CancellationToken ct)
     {
+        try { await JoinFriendCoreAsync(ct); }
+        catch { await social.CloseGuestConnectionAsync(); throw; }
+    }
+    private async Task JoinFriendCoreAsync(CancellationToken ct)
+    {
         EnsureGameStopped();
         if (SelectedAccount == null) throw new InvalidOperationException("Сначала выберите игровой аккаунт.");
         var friend = RequireFriend(); var room = friend.Room ?? throw new InvalidOperationException("Друг не публикует сервер.");

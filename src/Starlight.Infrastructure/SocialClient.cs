@@ -36,6 +36,8 @@ public sealed class SocialClient(HttpClient http) : IAsyncDisposable
             return remote.Take(4).Select(c => IPEndPoint.TryParse(c, out var endpoint) ? endpoint : null).Where(e => e is { Port: >= 1024 } && e.Address.AddressFamily == AddressFamily.InterNetwork && e.Address.GetAddressBytes()[0] is > 0 and < 224).Cast<IPEndPoint>().ToArray();
         };
     public bool Connected => Hub?.State == HubConnectionState.Connected;
+    public Task SetGameActivityAsync(bool playing, CancellationToken ct) => RequireHub().InvokeAsync("SetPresence", new Presence(hostRoom != null ? "Игра открыта друзьям" : playing ? "В игре" : "В сети", hostRoom), ct);
+    public Task CloseGuestConnectionAsync() => hostRoom == null ? StopTunnelsAsync() : Task.CompletedTask;
     public async Task ConnectAsync(string url, string name, string password, bool register, CancellationToken ct)
     {
         name = name.Trim();

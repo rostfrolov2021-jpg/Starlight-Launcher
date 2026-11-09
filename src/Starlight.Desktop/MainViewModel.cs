@@ -236,9 +236,9 @@ public sealed partial class MainViewModel : ReactiveObject, IAsyncDisposable
         if (account.IsMicrosoft && vaultUnlocked) await vault.SaveAsync(Accounts, VaultPassword, ct);
         gameProcess?.Dispose(); gameProcess = await game.LaunchAsync(RequireInstance(), account, Report(), AppendLog, ct, port);
         gameProcess.Exited += (_, _) => Dispatcher.UIThread.Post(() => {
-            if (social.Connected) Command(token => social.RequireHub().InvokeAsync("SetPresence", new Presence("В сети"), token)).Execute(null);
+            if (social.Connected) Command(async token => { await social.SetGameActivityAsync(false, token); await social.CloseGuestConnectionAsync(); }).Execute(null);
         });
-        if (social.Connected) await social.RequireHub().InvokeAsync("SetPresence", new Presence("В игре"), ct);
+        if (social.Connected) await social.SetGameActivityAsync(true, ct);
     }
     private void AddAccount(Account account) { var existing = Accounts.FirstOrDefault(a => a.Uuid == account.Uuid); if (existing != null) Accounts.Remove(existing); Accounts.Add(account); SelectedAccount = account; }
     private Instance RequireInstance() => SelectedInstance ?? throw new InvalidOperationException("Выберите сборку.");

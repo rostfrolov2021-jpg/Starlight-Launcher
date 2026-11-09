@@ -174,6 +174,8 @@ else if (args.Length > 0)
         alice.EnablePeerDiscovery = bob.EnablePeerDiscovery = route == "signaling";
         alice.NatPort = route == "mediator" ? int.TryParse(Environment.GetEnvironmentVariable("STARLIGHT_TEST_NAT_PORT"), out var testNatPort) ? testNatPort : 5089 : 59999; bob.NatPort = alice.NatPort;
         var room = await alice.HostAsync(echoPort, "Echo", ct);
+        await alice.SetGameActivityAsync(true, ct);
+        Check((await bob.FriendsAsync(ct)).Single().Room == room, "host launch keeps invitation visible");
         await Throws<Microsoft.AspNetCore.SignalR.HubException>(() => stranger.RequireHub().InvokeAsync("OpenTunnel", room, Guid.NewGuid().ToString("N"), VoiceService.NewSecret(), ct), "non-friend cannot open tunnel");
         var port = await bob.JoinAsync(room, ct); using var tcp = new TcpClient(); await tcp.ConnectAsync(IPAddress.Loopback, port, ct);
         var payload = RandomNumberGenerator.GetBytes(200_000); var reply = new byte[payload.Length];
