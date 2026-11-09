@@ -41,7 +41,7 @@ public sealed partial class MainWindow : Window
                 FileTypeFilter = [new FilePickerFileType("Сборки Minecraft") { Patterns = ["*.mrpack", "*.zip"] }] });
             return files.FirstOrDefault()?.TryGetLocalPath();
         };
-        model.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(MainViewModel.Page)) Dispatcher.UIThread.Post(() => this.FindControl<ScrollViewer>("MainScroll")!.Offset = default, DispatcherPriority.Background); };
+        model.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(MainViewModel.Page)) DispatcherTimer.RunOnce(() => this.FindControl<ScrollViewer>("MainScroll")!.Offset = default, TimeSpan.FromMilliseconds(100)); };
         Opened += async (_, _) => {
             await model.InitializeAsync();
             if (Environment.GetEnvironmentVariable("STARLIGHT_SMOKE_WORKFLOW") == "1")
