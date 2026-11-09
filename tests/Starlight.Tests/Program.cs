@@ -130,10 +130,11 @@ else if (args.Length > 0)
     string? transport = null;
     alice.Notice += message => Console.WriteLine("HOST " + message); bob.Notice += message => { Console.WriteLine("GUEST " + message); if (message.StartsWith("Маршрут:")) transport = message; };
     var suffix = Guid.NewGuid().ToString("N")[..8];
-    await alice.ConnectAsync(args[0], "Alice_" + suffix, "integration_password_123", true, ct);
-    await bob.ConnectAsync(args[0], "Bob_" + suffix, "integration_password_123", true, ct);
-    await stranger.ConnectAsync(args[0], "Other_" + suffix, "integration_password_123", true, ct);
-    var found = await alice.SearchUsersAsync(" bOb ", ct);
+    var password = args.Contains("--live") ? Convert.ToHexString(RandomNumberGenerator.GetBytes(24)) : "integration_password_123";
+    await alice.ConnectAsync(args[0], "Alice_" + suffix, password, true, ct);
+    await bob.ConnectAsync(args[0], "Bob_" + suffix, password, true, ct);
+    await stranger.ConnectAsync(args[0], "Other_" + suffix, password, true, ct);
+    var found = await alice.SearchUsersAsync(" bOb_" + suffix[..4] + " ", ct);
     Check(found.Any(u => u.Id == bob.Session!.Id), "authenticated prefix search is case insensitive and trims whitespace");
     Check((await alice.SearchUsersAsync("bo", ct)).Length == 0 && (await alice.SearchUsersAsync("Alice_" + suffix, ct)).Length == 0, "search requires three characters and excludes self");
     var changed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -148,7 +149,7 @@ else if (args.Length > 0)
     Check((await bob.FriendsAsync(ct)).Length == 0 && (await alice.FriendsAsync(ct)).Length == 0, "sender can cancel outgoing request on both sides");
     await bob.DisconnectAsync();
     await alice.RequestFriendAsync("Bob_" + suffix, ct);
-    await bob.ConnectAsync(args[0], "Bob_" + suffix, "integration_password_123", false, ct);
+    await bob.ConnectAsync(args[0], "Bob_" + suffix, password, false, ct);
     Check((await bob.FriendsAsync(ct)).Single().Pending, "offline recipient receives saved request after login");
     await bob.RequestFriendAsync(alice.Session!.Id, ct);
     await bob.RequireHub().InvokeAsync("AcceptFriend", alice.Session!.Id, ct);
