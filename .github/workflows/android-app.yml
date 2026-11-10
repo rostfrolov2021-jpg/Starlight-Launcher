@@ -15,7 +15,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
-        with: { distribution: temurin, java-version: 17 }
+        with:
+          distribution: temurin
+          # 8 for the :jre_lwjgl3glfw module toolchain, 17 (last = default JAVA_HOME) for Gradle/AGP
+          java-version: |
+            8
+            17
       - name: Android SDK components
         run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-34" "build-tools;34.0.0" "ndk;25.2.9519653" >/dev/null
       - name: Language list (generated file the build expects)
@@ -27,7 +32,7 @@ jobs:
         run: |
           if [ -n "$CF_KEY" ]; then export CURSEFORGE_API_KEY="$CF_KEY"; fi
           chmod +x gradlew
-          ./gradlew :app_pojavlauncher:assembleDebug --no-daemon --stacktrace
+          ./gradlew :app_pojavlauncher:assembleDebug --no-daemon --stacktrace -Dorg.gradle.java.installations.fromEnv=JAVA_HOME_8_X64,JAVA_HOME_17_X64
       - run: ls -lh app_pojavlauncher/build/outputs/apk/debug/
       - uses: actions/upload-artifact@v4
         with:
