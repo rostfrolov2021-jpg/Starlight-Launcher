@@ -3,6 +3,9 @@ name: Build Android JRE
 # checked out at a pinned commit (not vendored). The result is the Java runtime the Starlight Android app unpacks on first launch.
 # OpenJDK is GPLv2 + Classpath Exception; the recipe repo carries its own terms. Takes 1-2 hours per version.
 on:
+  push:
+    branches: [android-runtime]
+    paths: ['.github/workflows/build-android-jre.yml']
   workflow_dispatch:
     inputs:
       versions:
