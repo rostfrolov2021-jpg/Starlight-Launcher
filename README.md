@@ -4,11 +4,11 @@
 
 Minecraft, любимые сборки и свои серверы — в одном приложении.
 
-**[Сайт Starlight](https://rostfrolov2021-jpg.github.io/Starlight-Launcher/)** · **Скачать этот лаунчер:** [на ПК (Windows)](https://github.com/rostfrolov2021-jpg/Starlight-Launcher/releases/latest/download/Starlight-Setup-win-x64.exe) · [на телефон (Android, APK)](https://github.com/rostfrolov2021-jpg/Starlight-Launcher/releases/latest/download/Starlight-android-arm64.apk)
+**[Сайт Starlight](https://rostfrolov2021-jpg.github.io/Starlight-Launcher/)** · **Скачать этот лаунчер:** [на ПК (Windows)](https://github.com/rostfrolov2021-jpg/Starlight-Launcher/releases/latest/download/Starlight-Setup-win-x64.exe) · [на телефон (Android, релизы)](https://github.com/rostfrolov2021-jpg/Starlight-Launcher/releases)
 
 ## Как установить
 
-1. Нажмите «Скачать этот лаунчер» и выберите ПК (установщик `.exe`) или телефон (`.apk`).
+1. Нажмите «Скачать этот лаунчер» и выберите ПК (установщик `.exe`) или телефон (страница релизов).
 2. Откройте файл и завершите установку.
 3. Запустите Starlight, добавьте профиль и выберите сборку.
 
@@ -20,7 +20,7 @@ Minecraft, любимые сборки и свои серверы — в одн�
 
 **Нужно каждый раз переустанавливать приложение?** Нет, новые версии устанавливаются из лаунчера. Сборки и миры сохраняются.
 
-**Какая система поддерживается?** ПК: установщик для Windows x64. Телефон: приложение для Android (APK, arm64).
+**Какая система поддерживается?** ПК: установщик для Windows x64. Телефон: приложение для Android (arm64), смотрите страницу релизов.
 
 **Можно играть на серверах?** Да, с совместимой версией игры и подходящим аккаунтом. Offline-профиль не заменяет лицензионный вход.
 
