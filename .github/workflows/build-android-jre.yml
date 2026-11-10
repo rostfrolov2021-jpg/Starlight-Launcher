@@ -3,9 +3,6 @@ name: Build Android JRE
 # checked out at a pinned commit (not vendored). The result is the Java runtime the Starlight Android app unpacks on first launch.
 # OpenJDK is GPLv2 + Classpath Exception; the recipe repo carries its own terms. Takes 1-2 hours per version.
 on:
-  push:
-    branches: [android-runtime]
-    paths: ['.github/workflows/build-android-jre.yml']
   workflow_dispatch:
     inputs:
       versions:
@@ -36,6 +33,10 @@ jobs:
         run: |
           sudo apt update
           sudo apt -y install autoconf python3 python-is-python3 unzip zip systemtap-sdt-dev libxtst-dev libasound2-dev libelf-dev libfontconfig1-dev libx11-dev libxext-dev libxrandr-dev libxrender-dev libxt-dev
+      - name: Pin upstream JDK 17 tag
+        # The recipe clones the moving tip of jdk17u, to which its patches no longer apply. 17.0.14 is the newest tag they apply to cleanly (verified).
+        if: matrix.version == 17
+        run: sed -i 's#git clone --depth 1 https://github.com/openjdk/jdk17u#git clone --branch jdk-17.0.14-ga --depth 1 https://github.com/openjdk/jdk17u#' 5_clonejdk.sh && grep -n 'jdk17u' 5_clonejdk.sh
       - name: Build
         run: export TARGET_VERSION=${{ matrix.version }} && bash 1_ci_build_arch_aarch64.sh
       - name: Show result
