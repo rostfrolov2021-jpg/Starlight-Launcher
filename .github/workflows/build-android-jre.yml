@@ -22,7 +22,7 @@ jobs:
     timeout-minutes: 330
     steps:
       - name: Free disk space
-        run: sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android /usr/local/share/boost; df -h / | tail -1
+        run: sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost; df -h / | tail -1
       - name: Checkout build recipe (pinned)
         uses: actions/checkout@v4
         with:
