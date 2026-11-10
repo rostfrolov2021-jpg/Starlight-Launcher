@@ -23,6 +23,14 @@ jobs:
             17
       - name: Android SDK components
         run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-34" "build-tools;34.0.0" "ndk;25.2.9519653" >/dev/null
+      - name: Bundle Java runtimes (from the android-runtime pre-release)
+        working-directory: .
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p runtime
+          gh release download android-runtime -p '*.tar.xz' -D runtime || echo "::warning::no android-runtime release yet, building without Java"
+          RUNTIME_VERSION="${GITHUB_RUN_NUMBER}" bash android/scripts/repack-jre-arm64.sh runtime android/app_pojavlauncher/src/main/assets/components
       - name: Language list (generated file the build expects)
         run: bash scripts/languagelist_updater.sh
       - uses: gradle/actions/setup-gradle@v4

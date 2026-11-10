@@ -1,0 +1,46 @@
+name: Publish Android runtime
+# Copies built JRE tarballs (artifacts of build-android-jre*.yml runs) into the pre-release "android-runtime",
+# which the Android app build downloads. Artifacts expire after 90 days; the release does not.
+on:
+  push:
+    branches: [android-fork]
+    paths: ['.github/workflows/publish-android-runtime.yml']
+  workflow_dispatch:
+    inputs:
+      run17: { description: 'Run id of build-android-jre.yml that produced JRE 17', default: '42800365437' }
+      run21: { description: 'Run id of build-android-jre.yml that produced JRE 21', default: '42799518009' }
+      run8:  { description: 'Run id of build-android-jre8.yml (optional)', default: '' }
+permissions:
+  contents: write
+  actions: read
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: jre17-android-arm64
+          run-id: ${{ inputs.run17 || '42800365437' }}
+          github-token: ${{ github.token }}
+          path: out
+      - uses: actions/download-artifact@v4
+        with:
+          name: jre21-android-arm64
+          run-id: ${{ inputs.run21 || '42799518009' }}
+          github-token: ${{ github.token }}
+          path: out
+      - uses: actions/download-artifact@v4
+        if: ${{ inputs.run8 != '' }}
+        with:
+          name: jre8-android-arm64
+          run-id: ${{ inputs.run8 }}
+          github-token: ${{ github.token }}
+          path: out
+      - name: Upload to pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ls -lh out
+          gh release view android-runtime >/dev/null 2>&1 || gh release create android-runtime --repo "$GITHUB_REPOSITORY" --prerelease \
+            --title "Android runtime (Java)" --notes "OpenJDK builds for Android arm64 used by the Starlight Android app. Not a launcher release."
+          gh release upload android-runtime out/*.tar.xz --clobber --repo "$GITHUB_REPOSITORY"
