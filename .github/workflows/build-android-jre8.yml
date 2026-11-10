@@ -1,0 +1,35 @@
+name: Build Android JRE 8
+# OpenJDK 8 for Android arm64 (Minecraft 1.16 and older). Recipe: PojavLauncherTeam/android-openjdk-build-multiarch (master, pinned commit).
+# Upstream jdk8u is pinned to jdk8u422-ga: the recipe's patches apply cleanly to it (newer tags reject jdk8u_android.diff).
+on:
+  push:
+    branches: [android-fork]
+    paths: ['.github/workflows/build-android-jre8.yml']
+  workflow_dispatch:
+jobs:
+  jre8:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 330
+    steps:
+      - name: Free disk space
+        run: sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost; df -h / | tail -1
+      - uses: actions/checkout@v4
+        with:
+          repository: PojavLauncherTeam/android-openjdk-build-multiarch
+          ref: faaf767697e67cd26bfd7a9c068335f9ce1b3d6b
+      - uses: actions/setup-java@v4
+        with: { java-version: 8, distribution: zulu }
+      - name: Install build dependencies
+        run: |
+          sudo apt update
+          sudo apt -y install autoconf python3 python-is-python3 unzip zip systemtap-sdt-dev gcc-multilib g++-multilib libxtst-dev libasound2-dev libelf-dev libfontconfig1-dev libx11-dev libxext-dev libxrandr-dev libxrender-dev libxt-dev
+      - name: Pin upstream jdk8u
+        run: sed -i 's#git clone --depth 1 https://github.com/openjdk/jdk8u openjdk#git clone --branch jdk8u422-ga --depth 1 https://github.com/openjdk/jdk8u openjdk#' clonejdk.sh && grep -n 'jdk8u' clonejdk.sh
+      - name: Build
+        run: bash ci_build_arch_aarch64.sh
+      - run: ls -lh jre8*.tar.xz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jre8-android-arm64
+          path: jre8*.tar.xz
+          retention-days: 90
