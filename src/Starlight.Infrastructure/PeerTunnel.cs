@@ -9,11 +9,12 @@ namespace Starlight.Infrastructure;
 // callers can safely fall back to the relay. A live stream is never migrated mid-packet.
 public static class PeerTunnel
 {
-    public static async Task<bool> TryBridgeAsync(Stream tcp, string mediator, int port, string secret, bool initiator, CancellationToken ct, Action? onConnected = null)
+    public static async Task<bool> TryBridgeAsync(Stream tcp, string mediator, int port, string secret, bool initiator, CancellationToken ct, Action? onConnected = null, Func<int, System.Net.IPEndPoint?, CancellationToken, Task<System.Net.IPEndPoint[]>>? exchange = null)
     {
         var key = Convert.FromHexString(secret); var token = Convert.ToHexString(SHA256.HashData(key));
         var listener = new EventBasedNetListener(); var nat = new EventBasedNatPunchListener();
-        var manager = new NetManager(listener) { NatPunchEnabled = true, AutoRecycle = true, DisconnectTimeout = 10000 };
+        var stun = new StunLayer();
+        var manager = new NetManager(listener, stun) { NatPunchEnabled = true, AutoRecycle = true, DisconnectTimeout = 10000 };
         var connected = new TaskCompletionSource<NetPeer>(TaskCreationOptions.RunContinuationsAsynchronously);
         using var stop = CancellationTokenSource.CreateLinkedTokenSource(ct);
         using var tx = new AesGcm(key, 16); using var rx = new AesGcm(key, 16);
@@ -61,6 +62,24 @@ public static class PeerTunnel
             catch (OperationCanceledException) { }
             catch { stop.Cancel(); }
         }, CancellationToken.None);
+        var signaling = Task.Run(async () => {
+            if (exchange == null) return;
+            try
+            {
+                var mapped = await stun.DiscoverAsync(manager, stop.Token);
+                while (!stop.IsCancellationRequested && !connected.Task.IsCompleted)
+                {
+                    var endpoints = await exchange(manager.LocalPort, mapped, stop.Token);
+                    foreach (var endpoint in endpoints)
+                    {
+                        manager.SendUnconnectedMessage(key, endpoint);
+                        if (initiator) manager.Connect(endpoint, token);
+                    }
+                    await Task.Delay(300, stop.Token);
+                }
+            }
+            catch (Exception e) when (e is not OutOfMemoryException) { /* Relay remains available. */ }
+        }, CancellationToken.None);
         try
         {
             NetPeer peer;
@@ -88,6 +107,6 @@ public static class PeerTunnel
             return true;
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested) { return active; }
-        finally { await stop.CancelAsync(); await poll; manager.Stop(); CryptographicOperations.ZeroMemory(key); }
+        finally { await stop.CancelAsync(); await signaling; await poll; manager.Stop(); CryptographicOperations.ZeroMemory(key); }
     }
 }

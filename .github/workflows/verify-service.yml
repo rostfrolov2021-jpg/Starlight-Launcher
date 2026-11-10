@@ -1,0 +1,37 @@
+name: Verify live friends service
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - run: dotnet build Starlight.sln -c Release
+      - name: Public friends and game connection
+        shell: pwsh
+        run: |
+          $url = (Get-Content website/social.json | ConvertFrom-Json).url.TrimEnd('/')
+          $expected = ([xml](Get-Content Directory.Build.props -Raw)).Project.PropertyGroup.Version
+          $config = Invoke-RestMethod "$url/api/client-config"
+          if ($config.version -ne $expected) { throw 'Hosting has not deployed this release yet.' }
+          dotnet tests/Starlight.Tests/bin/Release/net8.0/Starlight.Tests.dll $url --live
+          if ($LASTEXITCODE -ne 0) { throw 'Live service check failed.' }
+      - name: Desktop screenshots
+        shell: pwsh
+        run: |
+          $env:STARLIGHT_HOME = "$env:RUNNER_TEMP/starlight-ui"
+          $env:STARLIGHT_SCREENSHOT_DIR = "$env:GITHUB_WORKSPACE/artifacts/ui"
+          $env:STARLIGHT_SMOKE_EXIT = '1'
+          $app = Start-Process dotnet -ArgumentList @('src/Starlight.Desktop/bin/Release/net8.0/Starlight.dll') -PassThru -WindowStyle Hidden
+          if (-not $app.WaitForExit(120000)) { Stop-Process -Id $app.Id; throw 'UI smoke timed out.' }
+          if ($app.ExitCode -ne 0 -or (Get-ChildItem artifacts/ui/*.png).Count -ne 9) { throw 'UI screenshots incomplete.' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-ui
+          path: artifacts/ui/*.png

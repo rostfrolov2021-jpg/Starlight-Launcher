@@ -168,8 +168,8 @@ public sealed partial class MainViewModel : ReactiveObject, IAsyncDisposable
         OpenMods = Command(_ => { Shell.Open(paths.Mods(RequireInstance().Id)); return Task.CompletedTask; });
         CreateServer = Command(async ct => { var s = await servers.CreateAsync(ServerName, NewVersion ?? "", NewServerKind, AcceptedEula, (int)ServerPort, Report(), ct); Servers.Add(s); SelectedServer = s; });
         StartServer = Command(StartManagedServerAsync);
-        StopServer = Command(async ct => { if (serverProcess is { HasExited: false }) await ServerService.StopAsync(serverProcess, ct); await social.StopHostingAsync(ct); });
-        ShareServer = Command(async ct => { if (serverProcess is not { HasExited: false } || runningServer == null) throw new InvalidOperationException("Сначала запустите сервер."); if (runningServer.Kind == ServerKind.Nukkit) throw new InvalidOperationException("Приглашения Starlight поддерживают Java TCP; для Nukkit используйте прямой UDP-доступ."); await social.HostAsync(runningServer.Port, runningServer.Name, ct); });
+        StopServer = Command(async ct => { await StopSharingAsync(ct); if (serverProcess is { HasExited: false }) await ServerService.StopAsync(serverProcess, ct); });
+        ShareServer = Command(ShareServerAsync); StopSharing = Command(StopSharingAsync);
         SaveSettings = Command(SaveSettingsAsync);
         ConnectSocial = Command(ct => ConnectAsync(false, ct)); RegisterSocial = Command(ct => ConnectAsync(true, ct));
         AddFriend = SocialCommand(async ct => { await social.RequestFriendAsync(FriendName, ct); await LoadFriendsAsync(ct); FriendActionStatus = "Заявка отправлена. Друг увидит её после входа в этот же сервис."; });
@@ -178,7 +178,7 @@ public sealed partial class MainViewModel : ReactiveObject, IAsyncDisposable
         RefreshFriends = new(RefreshFriendsSafelyAsync);
         SendMessage = SocialCommand(async ct => { var friend = SendToGroup ? null : RequireFriend(); if (friend is { Pending: true } or { Outgoing: true }) throw new InvalidOperationException("Сначала примите заявку в друзья."); var target = SendToGroup ? SelectedGroup ?? throw new InvalidOperationException("Выберите группу.") : friend!.Id; await social.RequireHub().InvokeAsync("SendMessage", target, MessageText, ct); MessageText = ""; this.RaisePropertyChanged(nameof(MessageText)); });
         CreateGroup = SocialCommand(async ct => { var id = await social.RequireHub().InvokeAsync<string>("CreateGroup", Friends.Where(f => !f.Pending && !f.Outgoing).Select(f => f.Id).ToArray(), ct); SelectedGroup = id; this.RaisePropertyChanged(nameof(SelectedGroup)); });
-        JoinFriend = Command(async ct => { var room = RequireFriend().Room ?? throw new InvalidOperationException("Друг не публикует сервер."); var port = await social.JoinAsync(room, ct); await LaunchAsync(ct, port); });
+        JoinFriend = Command(JoinFriendAsync);
         CallFriend = Command(async ct => {
             var secret = VoiceService.NewSecret(); await social.RequireHub().InvokeAsync("VoiceOffer", RequireFriend().Id, "", secret, ct);
             await voice.StartAsync(social.BaseUri!.Host, (int)NatPort, secret, true, ct);
@@ -236,9 +236,9 @@ public sealed partial class MainViewModel : ReactiveObject, IAsyncDisposable
         if (account.IsMicrosoft && vaultUnlocked) await vault.SaveAsync(Accounts, VaultPassword, ct);
         gameProcess?.Dispose(); gameProcess = await game.LaunchAsync(RequireInstance(), account, Report(), AppendLog, ct, port);
         gameProcess.Exited += (_, _) => Dispatcher.UIThread.Post(() => {
-            if (social.Connected) Command(token => social.RequireHub().InvokeAsync("SetPresence", new Presence("В сети"), token)).Execute(null);
+            if (social.Connected) Command(async token => { await social.SetGameActivityAsync(false, token); await social.CloseGuestConnectionAsync(); }).Execute(null);
         });
-        if (social.Connected) await social.RequireHub().InvokeAsync("SetPresence", new Presence("В игре"), ct);
+        if (social.Connected) await social.SetGameActivityAsync(true, ct);
     }
     private void AddAccount(Account account) { var existing = Accounts.FirstOrDefault(a => a.Uuid == account.Uuid); if (existing != null) Accounts.Remove(existing); Accounts.Add(account); SelectedAccount = account; }
     private Instance RequireInstance() => SelectedInstance ?? throw new InvalidOperationException("Выберите сборку.");
@@ -305,6 +305,7 @@ public sealed partial class MainViewModel : ReactiveObject, IAsyncDisposable
         await actionGate.WaitAsync();
         await socialActionGate.WaitAsync(); await friendsGate.WaitAsync(); await friendSearchGate.WaitAsync();
         await voice.DisposeAsync(); await social.DisposeAsync();
+        if (publishedPack != null) await publishedPack.DisposeAsync();
         if (serviceProcess is { HasExited: false }) { serviceProcess.Kill(true); await serviceProcess.WaitForExitAsync(); } serviceProcess?.Dispose();
         if (serverProcess is { HasExited: false }) { using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(60)); try { await ServerService.StopAsync(serverProcess, timeout.Token); } catch (Exception e) { Log.Warning("Server shutdown: {Type}", e.GetType().Name); } }
         await consoleGate.WaitAsync(); consoleGate.Release(); if (settingsLoaded) await SaveSettingsAsync(CancellationToken.None); serverProcess?.Dispose(); gameProcess?.Dispose(); http.Dispose(); lifetime.Dispose(); actionGate.Release();

@@ -18,6 +18,7 @@
           <TextBlock Text="ПРОСТРАНСТВО" FontSize="10" Foreground="#A8BAB2" Margin="10,0,0,10" LetterSpacing="1.5"/>
           <Button Classes="nav" Classes.active="{Binding IsLibrary}" Content="Мои сборки" Command="{Binding Navigate}" CommandParameter="0"/>
           <Button Classes="nav" Classes.active="{Binding IsMods}" Content="Моды" Command="{Binding Navigate}" CommandParameter="1"/>
+          <Button Classes="nav" Classes.active="{Binding IsCatalog}" Content="Modpacks" Command="{Binding Navigate}" CommandParameter="7"/>
           <Button Classes="nav" Classes.active="{Binding IsServers}" Content="Серверы" Command="{Binding Navigate}" CommandParameter="2"/>
           <Button Classes="nav" Classes.active="{Binding IsSocial}" Content="Друзья и чат" Command="{Binding Navigate}" CommandParameter="3"/>
           <Border Height="1" Background="#33363C" Margin="8,24"/>
@@ -80,6 +81,9 @@
               <Grid ColumnDefinitions="*,*"><Button Content="Запустить" Command="{Binding StartServer}" Classes="primary" Margin="0,0,6,0" Padding="10,10"/><Button Grid.Column="1" Content="Остановить" Command="{Binding StopServer}" Padding="10,10"/></Grid>
               <Button Content="Открыть папку сервера" Command="{Binding OpenServerFolder}" HorizontalAlignment="Stretch"/>
               <Button Content="Пригласить друзей" Command="{Binding ShareServer}" HorizontalAlignment="Stretch"/>
+              <TextBlock Text="Клиентская сборка для друзей" Classes="muted"/>
+              <ComboBox ItemsSource="{Binding Instances}" SelectedItem="{Binding SelectedInstance}"><ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name}"/></DataTemplate></ComboBox.ItemTemplate></ComboBox>
+              <Button Content="Закрыть приглашение" Command="{Binding StopSharing}" HorizontalAlignment="Stretch"/>
               <Button Content="Удалить сервер" Command="{Binding DeleteServer}" HorizontalAlignment="Stretch"/>
               <Button Content="Отменить удаление" Command="{Binding RestoreDeletedServer}" IsVisible="{Binding CanRestoreServer}" HorizontalAlignment="Stretch"/>
               <Button Content="Архив удалённых серверов" Command="{Binding OpenDeletedServers}" FontSize="11" HorizontalAlignment="Stretch"/>

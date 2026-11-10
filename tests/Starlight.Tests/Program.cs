@@ -92,6 +92,7 @@ var decoded = new short[960]; Check(OpusDecoder.Create(48000, 1).Decode(bytes, 0
 passed += await DistributionTests.RunAsync(root);
 passed += await ServerPanelTests.RunAsync(root);
 passed += await FriendAndArchiveTests.RunAsync(root);
+passed += await MultiplayerTests.RunAsync(root);
 if (args.Contains("--online"))
 {
     using var onlineHttp = new HttpClient(); onlineHttp.DefaultRequestHeaders.UserAgent.ParseAdd("StarlightLauncher/1.0");
@@ -129,10 +130,11 @@ else if (args.Length > 0)
     string? transport = null;
     alice.Notice += message => Console.WriteLine("HOST " + message); bob.Notice += message => { Console.WriteLine("GUEST " + message); if (message.StartsWith("Маршрут:")) transport = message; };
     var suffix = Guid.NewGuid().ToString("N")[..8];
-    await alice.ConnectAsync(args[0], "Alice_" + suffix, "integration_password_123", true, ct);
-    await bob.ConnectAsync(args[0], "Bob_" + suffix, "integration_password_123", true, ct);
-    await stranger.ConnectAsync(args[0], "Other_" + suffix, "integration_password_123", true, ct);
-    var found = await alice.SearchUsersAsync(" bOb ", ct);
+    var password = args.Contains("--live") ? Convert.ToHexString(RandomNumberGenerator.GetBytes(24)) : "integration_password_123";
+    await alice.ConnectAsync(args[0], "Alice_" + suffix, password, true, ct);
+    await bob.ConnectAsync(args[0], "Bob_" + suffix, password, true, ct);
+    await stranger.ConnectAsync(args[0], "Other_" + suffix, password, true, ct);
+    var found = await alice.SearchUsersAsync(" bOb_" + suffix[..4] + " ", ct);
     Check(found.Any(u => u.Id == bob.Session!.Id), "authenticated prefix search is case insensitive and trims whitespace");
     Check((await alice.SearchUsersAsync("bo", ct)).Length == 0 && (await alice.SearchUsersAsync("Alice_" + suffix, ct)).Length == 0, "search requires three characters and excludes self");
     var changed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -147,7 +149,7 @@ else if (args.Length > 0)
     Check((await bob.FriendsAsync(ct)).Length == 0 && (await alice.FriendsAsync(ct)).Length == 0, "sender can cancel outgoing request on both sides");
     await bob.DisconnectAsync();
     await alice.RequestFriendAsync("Bob_" + suffix, ct);
-    await bob.ConnectAsync(args[0], "Bob_" + suffix, "integration_password_123", false, ct);
+    await bob.ConnectAsync(args[0], "Bob_" + suffix, password, false, ct);
     Check((await bob.FriendsAsync(ct)).Single().Pending, "offline recipient receives saved request after login");
     await bob.RequestFriendAsync(alice.Session!.Id, ct);
     await bob.RequireHub().InvokeAsync("AcceptFriend", alice.Session!.Id, ct);
@@ -165,10 +167,15 @@ else if (args.Length > 0)
         try { while (!ct.IsCancellationRequested) { var client = await echo.AcceptTcpClientAsync(ct); _ = Task.Run(async () => { using (client) { var stream = client.GetStream(); var buffer = new byte[32768]; int count; while ((count = await stream.ReadAsync(buffer, ct)) > 0) await stream.WriteAsync(buffer.AsMemory(0, count), ct); } }, ct); } }
         catch (OperationCanceledException) { }
     }, ct);
-    foreach (var useNat in new[] { true, false })
+    foreach (var route in new[] { "mediator", "signaling", "relay" })
     {
-        alice.NatPort = useNat ? int.TryParse(Environment.GetEnvironmentVariable("STARLIGHT_TEST_NAT_PORT"), out var testNatPort) ? testNatPort : 5089 : 59999; bob.NatPort = alice.NatPort;
+        if (args.Contains("--live") && route == "mediator") continue;
+        var useNat = route != "relay";
+        alice.EnablePeerDiscovery = bob.EnablePeerDiscovery = route == "signaling";
+        alice.NatPort = route == "mediator" ? int.TryParse(Environment.GetEnvironmentVariable("STARLIGHT_TEST_NAT_PORT"), out var testNatPort) ? testNatPort : 5089 : 59999; bob.NatPort = alice.NatPort;
         var room = await alice.HostAsync(echoPort, "Echo", ct);
+        await alice.SetGameActivityAsync(true, ct);
+        Check((await bob.FriendsAsync(ct)).Single().Room == room, "host launch keeps invitation visible");
         await Throws<Microsoft.AspNetCore.SignalR.HubException>(() => stranger.RequireHub().InvokeAsync("OpenTunnel", room, Guid.NewGuid().ToString("N"), VoiceService.NewSecret(), ct), "non-friend cannot open tunnel");
         var port = await bob.JoinAsync(room, ct); using var tcp = new TcpClient(); await tcp.ConnectAsync(IPAddress.Loopback, port, ct);
         var payload = RandomNumberGenerator.GetBytes(200_000); var reply = new byte[payload.Length];
@@ -178,6 +185,20 @@ else if (args.Length > 0)
         var duringTunnel = new TaskCompletionSource<ChatMessage>(); alice.Message += m => duringTunnel.TrySetResult(m);
         await bob.RequireHub().InvokeAsync("SendMessage", alice.Session.Id, "still responsive", ct);
         Check((await duringTunnel.Task.WaitAsync(TimeSpan.FromSeconds(5), ct)).Text == "still responsive", "chat remains responsive while tunnel is open");
+        await alice.StopHostingAsync(ct);
+    }
+    var packs = new FriendPacks(paths); var sharedInstance = instance with { LoaderVersion = "0.16.10" };
+    var sharedBytes = RandomNumberGenerator.GetBytes(200000); await File.WriteAllBytesAsync(Path.Combine(paths.Mods(instance.Id), "shared.jar"), sharedBytes, ct);
+    await using (var published = await packs.PublishAsync(sharedInstance, packs.Files(sharedInstance), ct))
+    {
+        var room = await alice.HostAsync(echoPort, "Pack", ct, published);
+        await Throws<Microsoft.AspNetCore.SignalR.HubException>(() => stranger.GetRoomPackAsync(room, ct), "stranger cannot inspect shared pack");
+        await Throws<Microsoft.AspNetCore.SignalR.HubException>(() => stranger.RequireHub().InvokeAsync("OpenPackTunnel", room, Guid.NewGuid().ToString("N"), VoiceService.NewSecret(), ct), "stranger cannot download shared pack");
+        var descriptor = await bob.GetRoomPackAsync(room, ct);
+        Check(descriptor == published.Description, "friend receives exact pack descriptor");
+        var localPort = await bob.JoinAsync(room, ct, true);
+        var downloaded = await packs.ReceiveAsync(descriptor!, localPort, 2048, new Progress<TransferProgress>(), ct);
+        Check(downloaded.LoaderVersion == sharedInstance.LoaderVersion && downloaded.Id != sharedInstance.Id && (await File.ReadAllBytesAsync(Path.Combine(paths.Game(downloaded.Id), "mods", "shared.jar"), ct)).SequenceEqual(sharedBytes), "friend pack travels through authenticated relay into isolated instance");
         await alice.StopHostingAsync(ct);
     }
     await timeout.CancelAsync(); echo.Stop(); await echoTask;
