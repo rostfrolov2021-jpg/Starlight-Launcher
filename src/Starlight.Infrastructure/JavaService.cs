@@ -5,7 +5,12 @@ using Starlight.Domain;
 
 namespace Starlight.Infrastructure;
 
-public sealed class JavaService(PathService paths, Downloads downloads)
+public interface IJavaProvider
+{
+    Task<string> EnsureAsync(int major, IProgress<TransferProgress>? progress, CancellationToken ct, bool jdk = false);
+}
+
+public sealed class JavaService(PathService paths, Downloads downloads) : IJavaProvider
 {
     private readonly SemaphoreSlim gate = new(1);
     public async Task<string> EnsureAsync(int major, IProgress<TransferProgress>? progress, CancellationToken ct, bool jdk = false)

@@ -2,3 +2,17 @@
 @media(max-width:900px){.wrap{width:calc(100% - 48px)}.header{height:90px}.header nav{gap:18px;font-size:12px}.hero{gap:25px}h1{letter-spacing:-2.5px}.lead{font-size:15px}.hero-icon{width:120px;height:120px;left:calc(50% - 60px);top:25%}.art-label{font-size:7px;left:18px;top:18px}.feature-strip{font-size:11px}.feature-strip b{margin-right:8px}.steps{gap:24px}.section{padding-block:65px}.faq{gap:35px}.about{padding:30px}.about h2{font-size:25px}.about .button{padding:16px;gap:15px}.split>p{max-width:280px}h2{font-size:30px}}
 @media(max-width:620px){.wrap{width:calc(100% - 36px)}.header{height:80px;gap:10px}.header .brand{font-size:20px}.company{font-size:6px}.header nav{display:none}.header-download{font-size:12px}.header-download span{margin-left:5px}.hero{grid-template-columns:1fr;padding-top:37px;padding-bottom:28px;gap:25px}.hero .eyebrow{font-size:9px;margin-bottom:20px}h1{font-size:56px;letter-spacing:-3px}.lead{font-size:16px;margin-bottom:23px}.hero-art{aspect-ratio:1.5}.hero-icon{top:23%;width:112px;height:112px;left:calc(50% - 56px)}.landscape{object-fit:cover}.art-label{font-size:8px}.art-caption{font-size:8px;bottom:15px;left:20px}.feature-strip{display:grid;grid-template-columns:1fr;gap:13px;padding-block:20px;font-size:12px}.section{padding-block:50px}.steps{grid-template-columns:1fr;gap:22px;margin-top:30px}.steps li{position:relative;padding-left:40px;padding-top:0;border:0}.steps li>span{position:absolute;left:0;top:4px}.steps h3{margin-top:0;margin-bottom:6px}.steps p{max-width:none}.tip{margin-top:26px}.split{display:block}.split>p{max-width:none;margin-top:20px}.table-scroll{margin-top:25px}table{min-width:610px;font-size:12px}thead th{font-size:9px}tbody th,tbody td{padding-block:20px}.table-footer{display:block}.table-footer p{line-height:1.7}.faq{grid-template-columns:1fr;gap:28px}.about{display:block;padding:29px 23px}.about h2{font-size:29px}.about .button{margin-top:24px;white-space:normal}.footer{flex-wrap:wrap;padding-block:30px;gap:12px}.footer p{width:100%;order:3}.footer>a:last-child{font-size:10px}.footer .brand{font-size:16px}}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{transition:none!important}}
+
+/* Download chooser: PC / phone */
+.dl-menu{position:relative;display:inline-block}
+.dl-menu>summary{list-style:none;cursor:pointer;user-select:none}
+.dl-menu>summary::-webkit-details-marker{display:none}
+.dl-menu>summary.header-download span{margin-left:8px}
+.dl-list{position:absolute;left:0;top:calc(100% + 8px);z-index:30;min-width:260px;display:flex;flex-direction:column;background:var(--paper);border:1px solid var(--line);border-radius:6px;box-shadow:0 14px 34px rgba(28,41,35,.18);overflow:hidden}
+.dl-right .dl-list{left:auto;right:0}
+.dl-list a{display:flex;flex-direction:column;gap:2px;padding:14px 18px;min-height:48px;color:var(--ink);text-decoration:none}
+.dl-list a+a{border-top:1px solid var(--line)}
+.dl-list a:hover,.dl-list a:focus-visible{background:var(--accent);text-decoration:none}
+.dl-list b{font-size:14px;font-weight:650}
+.dl-list small{font-size:12px;color:var(--muted)}
+@media(max-width:620px){.dl-list{min-width:min(260px,calc(100vw - 36px))}}

@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- Plain net8.0 so it can be referenced by the Android and iOS heads and by unit tests. -->
+    <RootNamespace>Starlight.Platform</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup><ProjectReference Include="../Starlight.Domain/Starlight.Domain.csproj" /></ItemGroup>
+</Project>
