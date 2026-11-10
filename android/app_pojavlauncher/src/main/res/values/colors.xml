@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="control_button_color">#4CC4C4C4</color>
+    <color name="control_button_pressed_color">#4D000000</color>
+
+    <color name="minebutton_color">#496C5C</color>
+    <color name="background_app">#1C1E22</color>
+    <color name="divider">@color/background_overlay</color>
+    <color name="background_overlay">#373B42</color>
+    <color name="background_status_bar">#17191D</color>
+    <color name="background_bottom_bar">#1B1E22</color>
+
+    <color name="primary_text">#E5E7EB</color>
+    <color name="secondary_text">#A0A6AF</color>
+    <color name="starlight_accent">#80A891</color>
+    <color name="starlight_card">#22252A</color>
+</resources>
